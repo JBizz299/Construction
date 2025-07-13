@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+/* Base font + rendering enhancements */
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Set up base body structure, let Tailwind handle the rest */
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+/* Optional: Remove h1 font-size if using Tailwind utilities everywhere */
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
