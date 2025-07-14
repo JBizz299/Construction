@@ -1,35 +1,41 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useJobs } from '../context/JobContext'
-import { v4 as uuidv4 } from 'uuid'
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useJobs } from '../context/JobContext';
 
 export default function Home() {
-  const { jobs, addJob } = useJobs()
-  const navigate = useNavigate()
+  const { jobs, addJob, loading } = useJobs();
+  const navigate = useNavigate();
 
-  const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', budget: '', timeline: '' })
-  const [searchTerm, setSearchTerm] = useState('') // track search
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ name: '', budget: '', timeline: '' });
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const handleCreate = () => {
-    if (!form.name) return
+  const handleCreate = async () => {
+    if (!form.name) return;
     const newJob = {
-      id: uuidv4(),
       name: form.name,
       budget: form.budget,
       timeline: form.timeline,
-      createdAt: new Date().toISOString(),
+    };
+    try {
+      await addJob(newJob);
+      setForm({ name: '', budget: '', timeline: '' });
+      setShowForm(false);
+      // Optionally navigate to the new job here after getting the new job ID from addJob
+      // For now, jobs update via listener and user can click manually
+    } catch (e) {
+      alert('Error creating job: ' + e.message);
     }
-    addJob(newJob)
-    setForm({ name: '', budget: '', timeline: '' })
-    setShowForm(false)
-    navigate(`/jobs/${newJob.id}`)
-  }
+  };
 
- 
-  const filteredJobs = jobs.filter((job) =>
+  // Filter jobs based on search term
+  const filteredJobs = jobs.filter(job =>
     job.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  );
+
+  if (loading) {
+    return <p className="p-8 max-w-3xl mx-auto">Loading jobs...</p>;
+  }
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
@@ -38,7 +44,7 @@ export default function Home() {
       <div className="flex items-center mb-4">
         <button
           className="bg-blue-600 text-white px-4 py-2 rounded mr-4"
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => setShowForm(v => !v)}
         >
           {showForm ? 'Cancel' : '+ Create Job'}
         </button>
@@ -47,7 +53,7 @@ export default function Home() {
           placeholder="Search jobs..."
           className="border p-2 flex-grow rounded"
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)} 
+          onChange={e => setSearchTerm(e.target.value)}
         />
       </div>
 
@@ -57,19 +63,19 @@ export default function Home() {
             className="border p-2 w-full rounded"
             placeholder="Job Name *"
             value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            onChange={e => setForm({ ...form, name: e.target.value })}
           />
           <input
             className="border p-2 w-full rounded"
             placeholder="Budget (optional)"
             value={form.budget}
-            onChange={(e) => setForm({ ...form, budget: e.target.value })}
+            onChange={e => setForm({ ...form, budget: e.target.value })}
           />
           <input
             className="border p-2 w-full rounded"
             placeholder="Timeline (optional)"
             value={form.timeline}
-            onChange={(e) => setForm({ ...form, timeline: e.target.value })}
+            onChange={e => setForm({ ...form, timeline: e.target.value })}
           />
           <button
             className="bg-green-600 text-white px-4 py-2 rounded"
@@ -81,7 +87,7 @@ export default function Home() {
       )}
 
       <div className="space-y-4">
-        {filteredJobs.map((job) => (
+        {filteredJobs.map(job => (
           <div
             key={job.id}
             className="border p-4 rounded shadow hover:bg-gray-50 cursor-pointer flex justify-between items-center"
@@ -102,5 +108,5 @@ export default function Home() {
         )}
       </div>
     </div>
-  )
+  );
 }
