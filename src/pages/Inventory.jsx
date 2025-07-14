@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import InventoryTable from '../components/InventoryTable';
 import AddItemForm from '../components/AddItemForm';
+import ReceiptUploader from '../components/ReceiptUploader';
 
 const Inventory = () => {
   const [items, setItems] = useState([
@@ -15,9 +16,17 @@ const Inventory = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-8">
-      <h1 className="text-2x1 font-bold">Inventory Management</h1>
+      <h1 className="text-2xl font-bold mb-6">Inventory Management</h1>
+
+      {/* Inventory Section */}
       <AddItemForm onAddItem={addItem} />
       <InventoryTable data={items} />
+
+      {/* Divider */}
+      <hr className="my-8" />
+
+      {/* Receipt Upload Section */}
+      <ReceiptUploader />
     </div>
   );
 };
