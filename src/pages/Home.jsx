@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useJobs } from '../context/JobContext';
 
@@ -9,6 +9,7 @@ export default function Home() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', budget: '', timeline: '' });
   const [searchTerm, setSearchTerm] = useState('');
+  const [pendingJobId, setPendingJobId] = useState(null); // new state
 
   const handleCreate = async () => {
     if (!form.name) return;
@@ -18,18 +19,27 @@ export default function Home() {
       timeline: form.timeline,
     };
     try {
-      await addJob(newJob);
+      const newJobId = await addJob(newJob);
+      setPendingJobId(newJobId); // mark job as pending for navigation
       setForm({ name: '', budget: '', timeline: '' });
       setShowForm(false);
-      // Optionally navigate to the new job here after getting the new job ID from addJob
-      // For now, jobs update via listener and user can click manually
     } catch (e) {
       alert('Error creating job: ' + e.message);
     }
   };
 
-  // Filter jobs based on search term
-  const filteredJobs = jobs.filter(job =>
+  // Effect: once job appears in state, navigate to it
+  useEffect(() => {
+    if (pendingJobId) {
+      const match = jobs.find((job) => job.id === pendingJobId);
+      if (match) {
+        navigate(`/jobs/${pendingJobId}`);
+        setPendingJobId(null); // clear after navigation
+      }
+    }
+  }, [jobs, pendingJobId, navigate]);
+
+  const filteredJobs = jobs.filter((job) =>
     job.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -44,7 +54,7 @@ export default function Home() {
       <div className="flex items-center mb-4">
         <button
           className="bg-blue-600 text-white px-4 py-2 rounded mr-4"
-          onClick={() => setShowForm(v => !v)}
+          onClick={() => setShowForm((v) => !v)}
         >
           {showForm ? 'Cancel' : '+ Create Job'}
         </button>
@@ -53,7 +63,7 @@ export default function Home() {
           placeholder="Search jobs..."
           className="border p-2 flex-grow rounded"
           value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
       </div>
 
@@ -63,19 +73,19 @@ export default function Home() {
             className="border p-2 w-full rounded"
             placeholder="Job Name *"
             value={form.name}
-            onChange={e => setForm({ ...form, name: e.target.value })}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
           />
           <input
             className="border p-2 w-full rounded"
             placeholder="Budget (optional)"
             value={form.budget}
-            onChange={e => setForm({ ...form, budget: e.target.value })}
+            onChange={(e) => setForm({ ...form, budget: e.target.value })}
           />
           <input
             className="border p-2 w-full rounded"
             placeholder="Timeline (optional)"
             value={form.timeline}
-            onChange={e => setForm({ ...form, timeline: e.target.value })}
+            onChange={(e) => setForm({ ...form, timeline: e.target.value })}
           />
           <button
             className="bg-green-600 text-white px-4 py-2 rounded"
@@ -87,7 +97,7 @@ export default function Home() {
       )}
 
       <div className="space-y-4">
-        {filteredJobs.map(job => (
+        {filteredJobs.map((job) => (
           <div
             key={job.id}
             className="border p-4 rounded shadow hover:bg-gray-50 cursor-pointer flex justify-between items-center"
@@ -102,7 +112,6 @@ export default function Home() {
             <span className="text-gray-400">→</span>
           </div>
         ))}
-
         {filteredJobs.length === 0 && (
           <p className="text-gray-500">No jobs found for "{searchTerm}".</p>
         )}
