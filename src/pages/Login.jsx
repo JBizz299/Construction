@@ -1,7 +1,7 @@
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 
 export default function Login() {
@@ -9,21 +9,6 @@ export default function Login() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    if (user) {
-      // Optional: wait 1s before redirecting for better UX
-      const timeout = setTimeout(() => {
-        navigate('/dashboard');
-      }, 500);
-
-      return () => clearTimeout(timeout);
-    }
-  }, [user, navigate]);
-
-  if (user) {
-    return <div className="p-8 text-center">You're already logged in.</div>;
-  }
 
   const handleLogin = async () => {
     try {
@@ -33,6 +18,30 @@ export default function Login() {
       setError(err.message);
     }
   };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      navigate('/login');
+    } catch (err) {
+      setError('Failed to sign out. Try again.');
+    }
+  };
+
+  if (user) {
+    return (
+      <div className="p-8 text-center max-w-md mx-auto">
+        <p className="mb-4">You're already logged in.</p>
+        <button
+          onClick={handleSignOut}
+          className="bg-red-600 text-white px-4 py-2 rounded"
+        >
+          Sign Out
+        </button>
+        {error && <p className="text-red-500 mt-2">{error}</p>}
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 max-w-md mx-auto">

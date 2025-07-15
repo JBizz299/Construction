@@ -26,14 +26,6 @@ export default function Navbar() {
           Dashboard
         </NavLink>
         <NavLink
-          to="/orders"
-          className={({ isActive }) =>
-            `${baseStyle} ${isActive ? activeStyle : inactiveStyle}`
-          }
-        >
-          Orders
-        </NavLink>
-        <NavLink
           to="/inventory"
           className={({ isActive }) =>
             `${baseStyle} ${isActive ? activeStyle : inactiveStyle}`

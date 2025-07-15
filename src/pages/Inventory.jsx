@@ -1,31 +1,42 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import InventoryTable from '../components/InventoryTable';
 import AddItemForm from '../components/AddItemForm';
 import ReceiptUploader from '../components/ReceiptUploader';
+import { db } from '../firebase';
+import { collection, addDoc, getDocs, onSnapshot } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
 
 const Inventory = () => {
-  const [items, setItems] = useState([
-    { name: 'Concrete Bags', sku: 'CB-1001', quantity: 250, location: 'Warehouse A', vendor: 'BuildCo' },
-    { name: 'Rebar Steel Rods', sku: 'RS-2002', quantity: 120, location: 'Yard B', vendor: 'SteelMakers' },
-    { name: 'PVC Pipes', sku: 'PP-3010', quantity: 600, location: 'Warehouse A', vendor: 'PipeWorks' },
-  ]);
+  const { user } = useAuth();
+  const [items, setItems] = useState([]);
 
-  const addItem = (newItem) => {
-    setItems([...items, newItem]);
+  useEffect(() => {
+    if (!user) return;
+
+    const userInventoryRef = collection(db, 'users', user.uid, 'inventoryItems');
+
+    // Real-time listener (or use getDocs for one-time fetch)
+    const unsubscribe = onSnapshot(userInventoryRef, (snapshot) => {
+      const inventoryData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setItems(inventoryData);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  const addItem = async (newItem) => {
+    if (!user) return;
+
+    const userInventoryRef = collection(db, 'users', user.uid, 'inventoryItems');
+    await addDoc(userInventoryRef, newItem); // Firebase will auto-merge with real-time listener
   };
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Inventory Management</h1>
-
-      {/* Inventory Section */}
       <AddItemForm onAddItem={addItem} />
       <InventoryTable data={items} />
-
-      {/* Divider */}
       <hr className="my-8" />
-
-      {/* Receipt Upload Section */}
       <ReceiptUploader />
     </div>
   );

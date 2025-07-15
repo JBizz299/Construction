@@ -1,27 +1,14 @@
-import { useState } from 'react'
-import { subcontractors } from '../data/sampleSubs'
-import { jobs } from '../data/sampleJobs'
-import JobCell from './JobCell'
-import { format, addDays, startOfWeek } from 'date-fns'
+import { subcontractors } from '../data/sampleSubs';
+import { jobs } from '../data/sampleJobs';
+import JobCell from './JobCell';
+import { format, addDays, startOfWeek } from 'date-fns';
 
-// Get current week starting Monday
-const start = startOfWeek(new Date(), { weekStartsOn: 1 })
-
-// Generate labels like 'Mon 07/15', 'Tue 07/16', etc.
+const start = startOfWeek(new Date(), { weekStartsOn: 1 });
 const days = Array.from({ length: 7 }, (_, i) =>
   format(addDays(start, i), 'EEE MM/dd')
-)
+);
 
-function JobBoard() {
-  const [assignments, setAssignments] = useState({})
-
-  const handleUpdate = (subId, day, job) => {
-    setAssignments(prev => ({
-      ...prev,
-      [`${subId}-${day}`]: job
-    }))
-  }
-
+function JobBoard({ assignments = {}, onUpdate }) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full table-fixed border border-gray-300 shadow-sm">
@@ -41,7 +28,7 @@ function JobBoard() {
                 <JobCell
                   key={day}
                   value={assignments[`${sub.id}-${day}`] || ''}
-                  onChange={(job) => handleUpdate(sub.id, day, job)}
+                  onChange={(job) => onUpdate(sub.id, day, job)}
                   jobs={jobs}
                 />
               ))}
@@ -50,7 +37,7 @@ function JobBoard() {
         </tbody>
       </table>
     </div>
-  )
+  );
 }
 
-export default JobBoard
+export default JobBoard;

@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
-import Orders from './pages/Orders';
 import Inventory from './pages/Inventory';
 import Login from './pages/Login';
 import JobPage from './pages/JobPage';
@@ -22,7 +21,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/orders" element={<Orders />} />
+     
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/jobs/:jobId" element={<JobPage />} />
       </Routes>
