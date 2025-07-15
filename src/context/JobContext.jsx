@@ -10,7 +10,8 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from './AuthContext'
-import { doc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { storage } from '../firebase'
 
 const JobContext = createContext()
 
@@ -57,6 +58,32 @@ export function JobProvider({ children }) {
     return () => unsubscribe()
   }, [user])
 
+async function uploadReceiptFile(file, jobId) {
+  if (!user) throw new Error('No user logged in')
+  console.log('Starting upload for', file.name)
+
+  const path = `receipts/${user.uid}/${jobId}/${Date.now()}_${file.name}`
+  const storageRef = ref(storage, path)
+  console.log('Storage ref:', path)
+
+  const uploadResult = await uploadBytes(storageRef, file)
+  console.log('Upload complete')
+
+  const downloadURL = await getDownloadURL(storageRef)
+  console.log('Download URL:', downloadURL)
+
+  const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
+  const docRef = await addDoc(receiptsRef, {
+    fileUrl: downloadURL,
+    fileName: file.name,
+    uploadedAt: serverTimestamp(),
+    type: file.type,
+    userId: user.uid,
+  })
+  console.log('Receipt saved with ID:', docRef.id)
+
+  return docRef.id
+}
   async function addJob(newJob) {
     if (!user) throw new Error('No user logged in')
     const jobsRef = collection(db, 'jobs')
@@ -79,6 +106,7 @@ export function JobProvider({ children }) {
   const value = {
     jobs,
     addJob,
+    uploadReceiptFile,
     loading,
   }
 

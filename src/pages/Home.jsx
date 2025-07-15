@@ -16,7 +16,7 @@ export default function Home() {
     const newJob = {
       name: form.name,
       budget: form.budget,
-      timeline: form.timeline,
+      timeline: form.timeline, 
     };
     try {
       const newJobId = await addJob(newJob);
@@ -113,7 +113,7 @@ export default function Home() {
           </div>
         ))}
         {filteredJobs.length === 0 && (
-          <p className="text-gray-500">No jobs found for "{searchTerm}".</p>
+          <p className="text-gray-500">No jobs found for "{searchTerm}"</p>
         )}
       </div>
     </div>

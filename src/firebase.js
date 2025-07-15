@@ -11,7 +11,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyA22Kv7Vse7U5GNxZemc5sy1VrvLP_vKLQ",
   authDomain: "contractorhub-1.firebaseapp.com",
   projectId: "contractorhub-1",
-  storageBucket: "contractorhub-1.appspot.com",
+  storageBucket: "contractorhub-1",
   messagingSenderId: "64759680655",
   appId: "1:64759680655:web:289b56f259cfc7872ceafa",
   measurementId: "G-Q82RRMSBTQ",
