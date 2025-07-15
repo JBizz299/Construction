@@ -1,17 +1,34 @@
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebase';
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 export default function Login() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      // Optional: wait 1s before redirecting for better UX
+      const timeout = setTimeout(() => {
+        navigate('/dashboard');
+      }, 500);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [user, navigate]);
+
+  if (user) {
+    return <div className="p-8 text-center">You're already logged in.</div>;
+  }
 
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, form.email, form.password);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message);
     }
