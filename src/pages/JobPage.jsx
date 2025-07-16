@@ -1,12 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useJobs } from '../context/JobContext'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore'
 import { db } from '../firebase'
 
 export default function JobPage() {
   const { jobId } = useParams()
-  const { jobs, uploadReceiptFile } = useJobs()
+  const { jobs, uploadReceiptFile, deleteReceipt, renameReceipt } = useJobs()
   const job = jobs.find((j) => j.id === jobId)
   const navigate = useNavigate()
 
@@ -17,6 +17,12 @@ export default function JobPage() {
   const [receipts, setReceipts] = useState([])
   const [receiptsLoading, setReceiptsLoading] = useState(true)
   const [uploadError, setUploadError] = useState(null)
+
+  const [filterTerm, setFilterTerm] = useState('')
+  const [previewReceipt, setPreviewReceipt] = useState(null)
+  const [renamingId, setRenamingId] = useState(null)
+  const [newFileName, setNewFileName] = useState('')
+  const [renameError, setRenameError] = useState(null)
 
   if (!job) {
     return (
@@ -77,6 +83,146 @@ export default function JobPage() {
     } finally {
       setUploading(false)
     }
+  }
+
+  // Start renaming a receipt
+  const startRename = useCallback((receipt) => {
+    const dotIndex = receipt.fileName.lastIndexOf('.')
+    if (dotIndex === -1) {
+      // no extension, let them rename whole thing
+      setNewFileName(receipt.fileName)
+    } else {
+      setNewFileName(receipt.fileName.slice(0, dotIndex))
+    }
+    setRenamingId(receipt.id)
+    setRenameError(null)
+  }, [])
+
+  // Delete receipt using context method
+  const handleDeleteReceipt = useCallback(
+    async (receipt) => {
+      if (!window.confirm(`Delete receipt "${receipt.fileName}"? This cannot be undone.`))
+        return
+      try {
+        await deleteReceipt(jobId, receipt)
+      } catch (error) {
+        console.error('Error deleting receipt:', error)
+        alert('Failed to delete receipt.')
+      }
+    },
+    [deleteReceipt, jobId]
+  )
+
+  // Cancel renaming
+  const cancelRename = () => {
+    setRenamingId(null)
+    setRenameError(null)
+  }
+
+  const saveRename = async (receipt) => {
+    if (!newFileName.trim()) {
+      setRenameError('File name cannot be empty.')
+      return
+    }
+    // Extract extension from original filename
+    const dotIndex = receipt.fileName.lastIndexOf('.')
+    const extension = dotIndex === -1 ? '' : receipt.fileName.slice(dotIndex)
+    const finalFileName = newFileName.trim() + extension
+
+    try {
+      await renameReceipt(jobId, receipt.id, finalFileName, receipt.fileName)
+      setRenamingId(null)
+      setRenameError(null)
+    } catch (error) {
+      console.error('Error renaming receipt:', error)
+      setRenameError('Failed to rename receipt.')
+    }
+  }
+
+  // Memoized handlers for button clicks to avoid recreating functions on every render
+  const onRenameClick = useCallback(
+    (receipt) => {
+      startRename(receipt)
+    },
+    [startRename]
+  )
+
+  const onDeleteClick = useCallback(
+    (receipt) => {
+      handleDeleteReceipt(receipt)
+    },
+    [handleDeleteReceipt]
+  )
+
+  // Filter receipts by name substring (case-insensitive)
+  const filteredReceipts = receipts.filter((r) =>
+    r.fileName.toLowerCase().includes(filterTerm.toLowerCase())
+  )
+
+  // Render inline preview modal
+  const renderPreviewModal = () => {
+    if (!previewReceipt) return null
+
+    if (!previewReceipt.fileUrl) {
+      return (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+          onClick={() => setPreviewReceipt(null)}
+        >
+          <div
+            className="bg-white p-4 rounded max-w-4xl max-h-[80vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold mb-2">{previewReceipt.fileName}</h3>
+            <p className="text-red-500">No preview available.</p>
+            <button
+              onClick={() => setPreviewReceipt(null)}
+              className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    const isImage = previewReceipt.fileName.match(/\.(jpeg|jpg|gif|png|svg)$/i)
+    const isPdf = previewReceipt.fileName.match(/\.pdf$/i)
+
+    return (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+        onClick={() => setPreviewReceipt(null)}
+      >
+        <div
+          className="bg-white p-4 rounded max-w-4xl max-h-[80vh] overflow-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h3 className="font-semibold mb-2">{previewReceipt.fileName}</h3>
+          {isImage && (
+            <img
+              src={previewReceipt.fileUrl}
+              alt={previewReceipt.fileName}
+              className="max-w-full max-h-[60vh] object-contain"
+            />
+          )}
+          {isPdf && (
+            <iframe
+              src={previewReceipt.fileUrl}
+              title={previewReceipt.fileName}
+              className="w-full h-[60vh]"
+            />
+          )}
+          {!isImage && !isPdf && <p>Preview not available for this file type.</p>}
+          <button
+            onClick={() => setPreviewReceipt(null)}
+            className="mt-4 px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -140,6 +286,13 @@ export default function JobPage() {
           <div>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Receipts</h2>
+              <input
+                type="text"
+                placeholder="Search receipts by name..."
+                className="border px-2 py-1 rounded mr-4 max-w-xs"
+                value={filterTerm}
+                onChange={(e) => setFilterTerm(e.target.value)}
+              />
               <button
                 onClick={() => setShowUploadForm((v) => !v)}
                 className="bg-green-600 text-white px-3 py-1 rounded text-sm"
@@ -158,9 +311,7 @@ export default function JobPage() {
                   className="mb-2"
                   disabled={uploading}
                 />
-                {uploadError && (
-                  <p className="text-red-500 mb-2">{uploadError}</p>
-                )}
+                {uploadError && <p className="text-red-500 mb-2">{uploadError}</p>}
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded"
@@ -173,29 +324,89 @@ export default function JobPage() {
 
             {receiptsLoading ? (
               <p>Loading receipts...</p>
-            ) : receipts.length === 0 ? (
-              <p className="text-gray-500 italic">No receipts uploaded yet.</p>
+            ) : filteredReceipts.length === 0 ? (
+              <p className="text-gray-500 italic">No receipts match your search.</p>
             ) : (
               <ul className="space-y-3 max-h-80 overflow-y-auto">
-                {receipts.map((r) => (
-                  <li key={r.id} className="border p-3 rounded flex justify-between items-center">
-                    <a
-                      href={r.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline"
-                    >
-                      {r.fileName}
-                    </a>
-                    <span className="text-sm text-gray-500">
-                      {r.uploadedAt?.seconds
-                        ? new Date(r.uploadedAt.seconds * 1000).toLocaleDateString()
-                        : ''}
-                    </span>
+                {filteredReceipts.map((r) => (
+                  <li
+                    key={r.id}
+                    className="border p-3 rounded flex justify-between items-center"
+                  >
+                    <div className="flex flex-col max-w-[60%]">
+                      {renamingId === r.id ? (
+                        <>
+                          <div className="flex items-center mb-1">
+                            <input
+                              type="text"
+                              value={newFileName}
+                              onChange={(e) => setNewFileName(e.target.value)}
+                              className="border px-2 py-1 rounded rounded-r-none flex-grow"
+                              autoFocus
+                            />
+                            <span className="border border-l-0 border-gray-300 px-2 py-1 rounded-r bg-gray-100 select-none">
+                              {(() => {
+                                const dotIndex = r.fileName.lastIndexOf('.')
+                                return dotIndex === -1 ? '' : r.fileName.slice(dotIndex)
+                              })()}
+                            </span>
+                          </div>
+                          {renameError && (
+                            <p className="text-red-500 text-xs mb-1">{renameError}</p>
+                          )}
+                          <div>
+                            <button
+                              onClick={() => saveRename(r)}
+                              className="text-green-600 underline mr-3 text-sm"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={cancelRename}
+                              className="text-gray-600 underline text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <a
+                          href="#!"
+                          onClick={() => setPreviewReceipt(r)}
+                          className="text-blue-600 underline truncate max-w-full"
+                          title="Click to preview"
+                        >
+                          {r.fileName}
+                        </a>
+                      )}
+
+
+                      <span className="text-sm text-gray-500 truncate max-w-full">
+                        {r.uploadedAt?.seconds
+                          ? new Date(r.uploadedAt.seconds * 1000).toLocaleDateString()
+                          : ''}
+                      </span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => onRenameClick(r)}
+                        className="text-yellow-600 underline text-sm"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => onDeleteClick(r)}
+                        className="text-red-600 underline text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
             )}
+
+            {renderPreviewModal()}
           </div>
         )}
 
