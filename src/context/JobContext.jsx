@@ -10,6 +10,7 @@ import {
   doc,
   updateDoc,
   deleteDoc,
+  getDocs,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from './AuthContext'
@@ -63,28 +64,22 @@ export function JobProvider({ children }) {
 
   async function uploadReceiptFile(file, jobId) {
     if (!user) throw new Error('No user logged in')
-    console.log('Starting upload for', file.name)
 
     const path = `receipts/${user.uid}/${jobId}/${Date.now()}_${file.name}`
     const storageRef = ref(storage, path)
-    console.log('Storage ref:', path)
 
-    const uploadResult = await uploadBytes(storageRef, file)
-    console.log('Upload complete')
-
+    await uploadBytes(storageRef, file)
     const downloadURL = await getDownloadURL(storageRef)
-    console.log('Download URL:', downloadURL)
 
     const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
     const docRef = await addDoc(receiptsRef, {
       fileUrl: downloadURL,
       fileName: file.name,
-      storagePath: path,      // <-- Added storagePath to allow deletion later
+      storagePath: path,
       uploadedAt: serverTimestamp(),
       type: file.type,
       userId: user.uid,
     })
-    console.log('Receipt saved with ID:', docRef.id)
 
     return docRef.id
   }
@@ -97,15 +92,13 @@ export function JobProvider({ children }) {
         console.warn('Receipt missing storagePath. Cannot delete from storage:', receipt)
         alert('This receipt cannot be deleted because it was uploaded before storage info was saved.')
         return
-    }
+      }
 
       const fileRef = ref(storage, receipt.storagePath)
       await deleteObject(fileRef)
-      console.log('Storage file deleted:', receipt.storagePath)
 
       const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receipt.id)
       await deleteDoc(receiptDoc)
-      console.log('Firestore receipt doc deleted:', receipt.id)
     } catch (e) {
       console.error('Failed to delete receipt:', e)
       throw e
@@ -114,34 +107,25 @@ export function JobProvider({ children }) {
 
   async function renameReceipt(jobId, receiptId, newName, originalName) {
     function ensureExtension(newName, originalName) {
-     // If newName already has an extension, return it as is
-     if (/\.[^/.]+$/.test(newName)) return newName
-
-      // Extract the extension from the originalName
+      if (/\.[^/.]+$/.test(newName)) return newName
       const extMatch = originalName.match(/\.[^/.]+$/)
-      if (extMatch) {
-        return newName + extMatch[0]
-      }
-
-      // If originalName has no extension (unlikely), just return newName
-     return newName
+      return extMatch ? newName + extMatch[0] : newName
     }
 
-  if (!user) throw new Error('No user logged in')
-  const trimmedName = newName.trim()
-  if (!trimmedName) throw new Error('New name cannot be empty')
+    if (!user) throw new Error('No user logged in')
+    const trimmedName = newName.trim()
+    if (!trimmedName) throw new Error('New name cannot be empty')
 
-  const finalName = ensureExtension(trimmedName, originalName)
+    const finalName = ensureExtension(trimmedName, originalName)
 
-  try {
-    const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receiptId)
-    await updateDoc(receiptDoc, { fileName: finalName })
-    console.log(`Receipt ${receiptId} renamed to:`, finalName)
-  } catch (e) {
-    console.error('Failed to rename receipt:', e)
-    throw e
+    try {
+      const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receiptId)
+      await updateDoc(receiptDoc, { fileName: finalName })
+    } catch (e) {
+      console.error('Failed to rename receipt:', e)
+      throw e
+    }
   }
-}
 
   async function addJob(newJob) {
     if (!user) throw new Error('No user logged in')
@@ -162,9 +146,43 @@ export function JobProvider({ children }) {
     }
   }
 
+  async function deleteJob(jobId) {
+    if (!user) throw new Error('No user logged in')
+
+    try {
+      // Delete all receipts from storage and Firestore
+      const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
+      const receiptSnap = await getDocs(receiptsRef)
+
+      for (const receiptDoc of receiptSnap.docs) {
+        const data = receiptDoc.data()
+        const storagePath = data.storagePath
+
+        if (storagePath) {
+          try {
+            const fileRef = ref(storage, storagePath)
+            await deleteObject(fileRef)
+          } catch (e) {
+            console.warn(`Failed to delete file ${storagePath} from storage`, e)
+          }
+        }
+
+        await deleteDoc(doc(db, 'jobs', jobId, 'receipts', receiptDoc.id))
+      }
+
+      // Delete the job document itself
+      await deleteDoc(doc(db, 'jobs', jobId))
+      console.log(`Job ${jobId} and its receipts deleted`)
+    } catch (e) {
+      console.error('Failed to delete job:', e)
+      throw e
+    }
+  }
+
   const value = {
     jobs,
     addJob,
+    deleteJob,
     uploadReceiptFile,
     deleteReceipt,
     renameReceipt,

@@ -1,26 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useJobs } from '../context/JobContext';
+import { Trash2 } from 'lucide-react';
 
 export default function Home() {
-  const { jobs, addJob, loading } = useJobs();
+  const { jobs, addJob, deleteJob, loading } = useJobs();
   const navigate = useNavigate();
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: '', budget: '', timeline: '' });
   const [searchTerm, setSearchTerm] = useState('');
-  const [pendingJobId, setPendingJobId] = useState(null); // new state
+  const [pendingJobId, setPendingJobId] = useState(null);
 
   const handleCreate = async () => {
     if (!form.name) return;
     const newJob = {
       name: form.name,
       budget: form.budget,
-      timeline: form.timeline, 
+      timeline: form.timeline,
     };
     try {
       const newJobId = await addJob(newJob);
-      setPendingJobId(newJobId); // mark job as pending for navigation
+      setPendingJobId(newJobId);
       setForm({ name: '', budget: '', timeline: '' });
       setShowForm(false);
     } catch (e) {
@@ -28,13 +29,12 @@ export default function Home() {
     }
   };
 
-  // Effect: once job appears in state, navigate to it
   useEffect(() => {
     if (pendingJobId) {
       const match = jobs.find((job) => job.id === pendingJobId);
       if (match) {
         navigate(`/jobs/${pendingJobId}`);
-        setPendingJobId(null); // clear after navigation
+        setPendingJobId(null);
       }
     }
   }, [jobs, pendingJobId, navigate]);
@@ -42,6 +42,18 @@ export default function Home() {
   const filteredJobs = jobs.filter((job) =>
     job.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleDelete = async (e, jobId) => {
+    e.stopPropagation();
+    const confirm = window.confirm('Are you sure you want to delete this job and all its data?');
+    if (!confirm) return;
+
+    try {
+      await deleteJob(jobId);
+    } catch (e) {
+      alert('Failed to delete job: ' + e.message);
+    }
+  };
 
   if (loading) {
     return <p className="p-8 max-w-3xl mx-auto">Loading jobs...</p>;
@@ -109,7 +121,16 @@ export default function Home() {
                 Budget: {job.budget || '—'} | Timeline: {job.timeline || '—'}
               </p>
             </div>
-            <span className="text-gray-400">→</span>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={(e) => handleDelete(e, job.id)}
+                className="text-red-500 hover:text-red-700 p-1 rounded"
+                title="Delete job"
+              >
+                <Trash2 size={20} />
+              </button>
+              <span className="text-gray-400">→</span>
+            </div>
           </div>
         ))}
         {filteredJobs.length === 0 && (
