@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app';
 import {
   getAuth,
   setPersistence,
-  browserSessionPersistence,
+  browserLocalPersistence, // changed from browserSessionPersistence
 } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -23,7 +23,7 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-//Set session-only persistence early, before any login state is restored
-setPersistence(auth, browserSessionPersistence).catch((err) =>
+// Set local persistence to stay signed in across browser restarts
+setPersistence(auth, browserLocalPersistence).catch((err) =>
   console.error('Failed to set auth persistence:', err)
 );

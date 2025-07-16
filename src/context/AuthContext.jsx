@@ -1,37 +1,43 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import { onAuthStateChanged, setPersistence, inMemoryPersistence } from 'firebase/auth';
-import { auth } from '../firebase';
+import { createContext, useContext, useEffect, useState } from 'react'
+import {
+  onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
+  getAuth
+} from 'firebase/auth'
+import { auth } from '../firebase'
 
-const AuthContext = createContext();
+const AuthContext = createContext()
 
 export function useAuth() {
-  return useContext(AuthContext);
+  return useContext(AuthContext)
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null)
+  const [loading, setLoading] = useState(true)
 
-  // Set persistence to in-memory (clears on reload)
+  // Set local persistence (persist across tabs and sessions)
   useEffect(() => {
-    setPersistence(auth, inMemoryPersistence).catch((error) => {
-      console.error('Failed to set persistence:', error);
-    });
-  }, []);
+    setPersistence(auth, browserLocalPersistence)
+      .catch((error) => {
+        console.error('Failed to set persistence:', error)
+      })
+  }, [])
 
-  // Listen for auth state changes
+  // Listen for login state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
-      setLoading(false);
-    });
+      setUser(user)
+      setLoading(false)
+    })
 
-    return unsubscribe;
-  }, []);
+    return unsubscribe
+  }, [])
 
   return (
-    <AuthContext.Provider value={{ user }}>
+    <AuthContext.Provider value={{ user, loading }}>
       {!loading && children}
     </AuthContext.Provider>
-  );
+  )
 }

@@ -1,18 +1,52 @@
-function JobCell({ value, onChange, jobs }) {
+import { useState } from 'react';
+import AssignmentSidebar from './AssignmentSidebar';
+import ModalPortal from '../utils/ModalPortal';
+
+function JobCell({ date, subcontractor, value, onChange, jobs }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const handleSave = (newJob) => {
+    console.log('Saving job:', newJob);
+    onChange(newJob);
+    setIsOpen(false);
+  };
+
+  const handleClick = (e) => {
+    console.log('Cell clicked, props:', { date, subcontractor, value, jobs });
+    e.preventDefault();
+    e.stopPropagation();
+    setIsOpen(true);
+  };
+
+  console.log('JobCell render - isOpen:', isOpen);
+
   return (
-    <td className="p-1 border-r text-center">
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full text-sm p-1 border rounded"
+    <>
+      {/* Remove the <td> wrapper - let the parent component handle table structure */}
+      <div
+        onClick={handleClick}
+        className="text-sm px-2 py-1 rounded hover:bg-gray-100 cursor-pointer text-center"
       >
-        <option value="">--</option>
-        {jobs.map(job => (
-          <option key={job} value={job}>{job}</option>
-        ))}
-      </select>
-    </td>
-  )
+        {value ? value : <span className="text-gray-400">+</span>}
+      </div>
+
+      {isOpen && (
+        <ModalPortal>
+          <AssignmentSidebar
+            date={date}
+            subcontractor={subcontractor}
+            currentAssignment={value}
+            jobs={jobs}
+            onSave={handleSave}
+            onClose={() => {
+              console.log('Closing sidebar');
+              setIsOpen(false);
+            }}
+          />
+        </ModalPortal>
+      )}
+    </>
+  );
 }
 
-export default JobCell
+export default JobCell;

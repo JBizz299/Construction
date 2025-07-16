@@ -1,7 +1,17 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useJobs } from '../context/JobContext'
 import { useState, useEffect, useCallback } from 'react'
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore'
+import {
+  collection,
+  query,
+  onSnapshot,
+  orderBy,
+  addDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp,
+  updateDoc,
+} from 'firebase/firestore'
 import { db } from '../firebase'
 
 export default function JobPage() {
@@ -11,6 +21,8 @@ export default function JobPage() {
   const navigate = useNavigate()
 
   const [tab, setTab] = useState('overview')
+
+  // Receipts state
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [receiptFile, setReceiptFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -23,6 +35,11 @@ export default function JobPage() {
   const [renamingId, setRenamingId] = useState(null)
   const [newFileName, setNewFileName] = useState('')
   const [renameError, setRenameError] = useState(null)
+
+  // Tasks state
+  const [tasks, setTasks] = useState([])
+  const [newTaskName, setNewTaskName] = useState('')
+  const [newTaskDue, setNewTaskDue] = useState('')
 
   if (!job) {
     return (
@@ -62,7 +79,21 @@ export default function JobPage() {
     return () => unsubscribe()
   }, [jobId])
 
-  // Upload handler
+  // Listen to tasks collection for this job
+  useEffect(() => {
+    const tasksRef = collection(db, 'jobs', jobId, 'tasks')
+    const q = query(tasksRef, orderBy('createdAt', 'asc'))
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const taskList = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      setTasks(taskList)
+    })
+    return unsubscribe
+  }, [jobId])
+
+  // Upload receipt handler
   const handleReceiptUpload = async (e) => {
     e.preventDefault()
     setUploadError(null)
@@ -85,11 +116,10 @@ export default function JobPage() {
     }
   }
 
-  // Start renaming a receipt
+  // Rename receipt
   const startRename = useCallback((receipt) => {
     const dotIndex = receipt.fileName.lastIndexOf('.')
     if (dotIndex === -1) {
-      // no extension, let them rename whole thing
       setNewFileName(receipt.fileName)
     } else {
       setNewFileName(receipt.fileName.slice(0, dotIndex))
@@ -98,33 +128,11 @@ export default function JobPage() {
     setRenameError(null)
   }, [])
 
-  // Delete receipt using context method
-  const handleDeleteReceipt = useCallback(
-    async (receipt) => {
-      if (!window.confirm(`Delete receipt "${receipt.fileName}"? This cannot be undone.`))
-        return
-      try {
-        await deleteReceipt(jobId, receipt)
-      } catch (error) {
-        console.error('Error deleting receipt:', error)
-        alert('Failed to delete receipt.')
-      }
-    },
-    [deleteReceipt, jobId]
-  )
-
-  // Cancel renaming
-  const cancelRename = () => {
-    setRenamingId(null)
-    setRenameError(null)
-  }
-
   const saveRename = async (receipt) => {
     if (!newFileName.trim()) {
       setRenameError('File name cannot be empty.')
       return
     }
-    // Extract extension from original filename
     const dotIndex = receipt.fileName.lastIndexOf('.')
     const extension = dotIndex === -1 ? '' : receipt.fileName.slice(dotIndex)
     const finalFileName = newFileName.trim() + extension
@@ -139,7 +147,31 @@ export default function JobPage() {
     }
   }
 
-  // Memoized handlers for button clicks to avoid recreating functions on every render
+  const cancelRename = () => {
+    setRenamingId(null)
+    setRenameError(null)
+  }
+
+  // Delete receipt
+  const handleDeleteReceipt = useCallback(
+    async (receipt) => {
+      if (
+        !window.confirm(
+          `Delete receipt "${receipt.fileName}"? This cannot be undone.`
+        )
+      )
+        return
+      try {
+        await deleteReceipt(jobId, receipt)
+      } catch (error) {
+        console.error('Error deleting receipt:', error)
+        alert('Failed to delete receipt.')
+      }
+    },
+    [deleteReceipt, jobId]
+  )
+
+  // Memoized handlers for rename and delete buttons
   const onRenameClick = useCallback(
     (receipt) => {
       startRename(receipt)
@@ -154,12 +186,44 @@ export default function JobPage() {
     [handleDeleteReceipt]
   )
 
-  // Filter receipts by name substring (case-insensitive)
+  // Filter receipts by fileName
   const filteredReceipts = receipts.filter((r) =>
     r.fileName.toLowerCase().includes(filterTerm.toLowerCase())
   )
 
-  // Render inline preview modal
+  // Task handlers
+  const handleAddTask = async (e) => {
+    e.preventDefault()
+    if (!newTaskName.trim()) return
+
+    await addDoc(collection(db, 'jobs', jobId, 'tasks'), {
+      name: newTaskName.trim(),
+      dueDate: newTaskDue ? new Date(newTaskDue) : null,
+      status: 'not_started',
+      createdAt: serverTimestamp(),
+    })
+
+    setNewTaskName('')
+    setNewTaskDue('')
+  }
+
+  const cycleTaskStatus = async (task) => {
+    const next = {
+      not_started: 'in_progress',
+      in_progress: 'done',
+      done: 'not_started',
+    }[task.status || 'not_started']
+
+    await updateDoc(doc(db, 'jobs', jobId, 'tasks', task.id), {
+      status: next,
+    })
+  }
+
+  const deleteTask = async (task) => {
+    await deleteDoc(doc(db, 'jobs', jobId, 'tasks', task.id))
+  }
+
+  // Render receipt preview modal
   const renderPreviewModal = () => {
     if (!previewReceipt) return null
 
@@ -253,11 +317,10 @@ export default function JobPage() {
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`px-4 py-2 rounded ${
-              tab === key
+            className={`px-4 py-2 rounded ${tab === key
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+              }`}
           >
             {key[0].toUpperCase() + key.slice(1)}
           </button>
@@ -380,7 +443,6 @@ export default function JobPage() {
                         </a>
                       )}
 
-
                       <span className="text-sm text-gray-500 truncate max-w-full">
                         {r.uploadedAt?.seconds
                           ? new Date(r.uploadedAt.seconds * 1000).toLocaleDateString()
@@ -410,38 +472,68 @@ export default function JobPage() {
           </div>
         )}
 
-        {/* Other tabs placeholders... */}
         {tab === 'tasks' && (
           <div>
             <h2 className="text-xl font-semibold mb-4">Tasks / Schedule</h2>
-            <p className="text-gray-500 italic">
-              (Add and manage tasks, deadlines, and assign to subs here.)
-            </p>
+
+            {/* Add New Task */}
+            <form
+              onSubmit={handleAddTask}
+              className="mb-4 flex flex-wrap gap-2 items-center"
+            >
+              <input
+                type="text"
+                placeholder="Task name"
+                value={newTaskName}
+                onChange={(e) => setNewTaskName(e.target.value)}
+                className="border px-2 py-1 rounded"
+              />
+              <input
+                type="date"
+                value={newTaskDue}
+                onChange={(e) => setNewTaskDue(e.target.value)}
+                className="border px-2 py-1 rounded"
+              />
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-3 py-1 rounded"
+              >
+                Add Task
+              </button>
+            </form>
+
+            {tasks.map((task) => (
+              <div
+                key={task.id}
+                className="border p-3 rounded flex justify-between items-center mb-2"
+              >
+                <div>
+                  <p className="font-semibold">{task.name}</p>
+                  <p className="text-sm text-gray-500">
+                    Due: {task.dueDate?.toDate().toLocaleDateString() || '—'} | Status:{' '}
+                    {task.status}
+                  </p>
+                </div>
+                <div className="flex space-x-2 text-sm">
+                  <button
+                    onClick={() => cycleTaskStatus(task)}
+                    className="text-yellow-600 underline"
+                  >
+                    Next Status
+                  </button>
+                  <button
+                    onClick={() => deleteTask(task)}
+                    className="text-red-600 underline"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
-        {tab === 'budget' && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Budget / Costs</h2>
-            <p className="text-gray-500 italic">(Track estimated vs actual costs here.)</p>
-          </div>
-        )}
-
-        {tab === 'documents' && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Documents</h2>
-            <p className="text-gray-500 italic">
-              (Upload and view blueprints, permits, contracts, etc.)
-            </p>
-          </div>
-        )}
-
-        {tab === 'team' && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Team / Subcontractors</h2>
-            <p className="text-gray-500 italic">(Manage assigned subcontractors and workers here.)</p>
-          </div>
-        )}
+        {/* Other tabs placeholders... */}
       </div>
     </div>
   )
