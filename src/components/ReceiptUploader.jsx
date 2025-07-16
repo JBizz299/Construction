@@ -1,11 +1,19 @@
 import { useState } from 'react';
 import { sampleJobsReceipts } from '../data/sampleJobsReceipts';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
+
+const storage = getStorage();
+const db = getFirestore();
 
 function ReceiptUploader() {
   const [selectedJob, setSelectedJob] = useState('');
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
-  const [ocrResult, setOcrResult] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const { currentUser } = useAuth();
 
   const handleJobSelect = (e) => {
     setSelectedJob(e.target.value);
@@ -18,28 +26,43 @@ function ReceiptUploader() {
   };
 
   const handleSubmit = async () => {
+    setUploadError(null);
     if (!file || !selectedJob) {
       alert('Please select a job and upload a receipt.');
       return;
     }
-
-    const formData = new FormData();
-    formData.append('receipt', file);
-    formData.append('jobId', selectedJob);
+    if (!currentUser) {
+      setUploadError('You must be logged in to upload.');
+      return;
+    }
 
     try {
-      const res = await fetch('http://localhost:4000/api/upload-receipt', {
-        method: 'POST',
-        body: formData,
+      setUploading(true);
+      // Upload to Firebase Storage
+      const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const storageRef = ref(storage, `jobs/${selectedJob}/receipts/${currentUser.uid}_${Date.now()}_${cleanFileName}`);
+      await uploadBytes(storageRef, file);
+      const fileUrl = await getDownloadURL(storageRef);
+
+      // Save metadata to Firestore
+      await addDoc(collection(db, 'jobs', selectedJob, 'receipts'), {
+        fileName: file.name,
+        fileUrl,
+        uploadedAt: serverTimestamp(),
+        uploadedBy: currentUser.uid,
+        archived: false,
+        type: file.type,
+        size: file.size,
       });
 
-      if (!res.ok) throw new Error('Server error');
-
-      const data = await res.json();
-      setOcrResult(data);  // store result to show below
+      setFile(null);
+      setPreviewUrl(null);
+      alert('Receipt uploaded successfully!');
     } catch (err) {
       console.error('Upload failed:', err);
-      alert('Upload failed. Please try again.');
+      setUploadError('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -74,17 +97,13 @@ function ReceiptUploader() {
       <button
         onClick={handleSubmit}
         className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        disabled={uploading}
       >
-        Submit
+        {uploading ? 'Uploading...' : 'Submit'}
       </button>
 
-      {ocrResult && (
-        <div className="mt-6 p-4 border rounded bg-gray-50">
-          <h3 className="text-lg font-semibold mb-2">Extracted Receipt Data</h3>
-          <p><strong>Vendor:</strong> {ocrResult.vendor || 'N/A'}</p>
-          <p><strong>Date:</strong> {ocrResult.date || 'N/A'}</p>
-          <p><strong>Total:</strong> ${ocrResult.total || 'N/A'}</p>
-        </div>
+      {uploadError && (
+        <div className="mt-4 text-red-500">{uploadError}</div>
       )}
     </div>
   );

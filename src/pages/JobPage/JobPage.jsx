@@ -13,6 +13,8 @@ import {
   updateDoc,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { auth } from '../../firebase' // Import auth from firebase config
 
 import OverviewTab from './OverviewTab'
 import ReceiptsTab from './ReceiptsTab'
@@ -20,6 +22,8 @@ import TasksTab from './TasksTab'
 import TeamTab from './TeamTab'
 import BudgetTab from './BudgetTab'
 import DocumentsTab from './DocumentsTab'
+
+const storage = getStorage()
 
 export default function JobPage() {
   const { jobId } = useParams()
@@ -385,7 +389,6 @@ export default function JobPage() {
     setEditMember(null)
   }
 
-  // Document handlers
   const handleDocumentUpload = async (e) => {
     e.preventDefault()
     setUploadError(null)
@@ -395,14 +398,62 @@ export default function JobPage() {
       return
     }
 
+    // Check if user is authenticated
+    if (!auth.currentUser) {
+      setUploadError('You must be logged in to upload documents.')
+      return
+    }
+
     try {
       setUploading(true)
-      // Upload document logic here
-      // Reset form and state after successful upload
+
+      // Clean the filename to avoid issues with special characters
+      const cleanFileName = documentFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const timestamp = Date.now()
+      const userId = auth.currentUser.uid // Include user ID for security rules
+
+      // 1. Upload file to Firebase Storage with cleaned path
+      const storageRef = ref(storage, `jobs/${jobId}/documents/${userId}_${timestamp}_${cleanFileName}`)
+
+      // Upload with metadata
+      const uploadResult = await uploadBytes(storageRef, documentFile, {
+        customMetadata: {
+          uploadedBy: userId,
+          jobId: jobId,
+          originalName: documentFile.name
+        }
+      })
+
+      const fileUrl = await getDownloadURL(storageRef)
+
+      // 2. Save metadata to Firestore
+      await addDoc(collection(db, 'jobs', jobId, 'documents'), {
+        fileName: documentFile.name, // Keep original name for display
+        fileUrl,
+        uploadedAt: serverTimestamp(),
+        uploadedBy: userId, // Track who uploaded it
+        archived: false,
+        type: documentFile.type,
+        size: documentFile.size,
+        storagePath: uploadResult.ref.fullPath // Store the storage path for deletion
+      })
+
+      // 3. Reset form and state
       setDocumentFile(null)
       setShowUploadForm(false)
     } catch (error) {
-      setUploadError('Upload failed. Try again.')
+      console.error('Upload error:', error) // Log the full error for debugging
+
+      // Provide more specific error messages
+      if (error.code === 'storage/unauthorized') {
+        setUploadError('You do not have permission to upload files.')
+      } else if (error.code === 'storage/invalid-argument') {
+        setUploadError('Invalid file or filename. Please try a different file.')
+      } else if (error.code === 'storage/quota-exceeded') {
+        setUploadError('Storage quota exceeded. Please contact support.')
+      } else {
+        setUploadError(`Upload failed: ${error.message}`)
+      }
     } finally {
       setUploading(false)
     }

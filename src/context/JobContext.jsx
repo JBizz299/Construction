@@ -65,7 +65,7 @@ export function JobProvider({ children }) {
   async function uploadReceiptFile(file, jobId) {
     if (!user) throw new Error('No user logged in')
 
-    const path = `receipts/${user.uid}/${jobId}/${Date.now()}_${file.name}`
+    const path = `jobs/${jobId}/receipts/${Date.now()}_${file.name}`
     const storageRef = ref(storage, path)
 
     await uploadBytes(storageRef, file)
