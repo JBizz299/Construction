@@ -62,6 +62,12 @@ export default function JobPage() {
   const [editMemberId, setEditMemberId] = useState(null)
   const [editMember, setEditMember] = useState(null)
 
+  // Documents state
+  const [documents, setDocuments] = useState([])
+  const [documentsLoading, setDocumentsLoading] = useState(true)
+  const [documentFile, setDocumentFile] = useState(null)
+  const [showArchived, setShowArchived] = useState(false)
+
   if (!job) {
     return (
       <div className="p-8">
@@ -120,6 +126,33 @@ export default function JobPage() {
       setTeam(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
     })
     return unsub
+  }, [jobId])
+
+  // Fetch documents
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      setDocumentsLoading(true)
+      const documentsRef = collection(db, 'jobs', jobId, 'documents')
+      const q = query(documentsRef, orderBy('uploadedAt', 'desc'))
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const documentsData = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          setDocuments(documentsData)
+          setDocumentsLoading(false)
+        },
+        (error) => {
+          setDocuments([])
+          setDocumentsLoading(false)
+        }
+      )
+      return () => unsubscribe()
+    }
+
+    fetchDocuments()
   }, [jobId])
 
   // Upload receipt handler
@@ -352,6 +385,47 @@ export default function JobPage() {
     setEditMember(null)
   }
 
+  // Document handlers
+  const handleDocumentUpload = async (e) => {
+    e.preventDefault()
+    setUploadError(null)
+
+    if (!documentFile) {
+      setUploadError('Please select a file before uploading.')
+      return
+    }
+
+    try {
+      setUploading(true)
+      // Upload document logic here
+      // Reset form and state after successful upload
+      setDocumentFile(null)
+      setShowUploadForm(false)
+    } catch (error) {
+      setUploadError('Upload failed. Try again.')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleArchiveDocument = async (document) => {
+    // Archive document logic here
+  }
+
+  const handleDeleteDocument = async (document) => {
+    if (!window.confirm(`Delete document "${document.fileName}"? This cannot be undone.`))
+      return
+    try {
+      // Delete document logic here
+    } catch (error) {
+      alert('Failed to delete document.')
+    }
+  }
+
+  const handlePreviewDocument = (document) => {
+    // Preview document logic here
+  }
+
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <div className="mb-6">
@@ -449,7 +523,24 @@ export default function JobPage() {
           />
         )}
         {tab === 'budget' && <BudgetTab job={job} />}
-        {tab === 'documents' && <DocumentsTab />}
+        {tab === 'documents' && (
+          <DocumentsTab
+            documents={documents}
+            documentsLoading={documentsLoading}
+            showUploadForm={showUploadForm}
+            setShowUploadForm={setShowUploadForm}
+            documentFile={documentFile}
+            setDocumentFile={setDocumentFile}
+            uploading={uploading}
+            uploadError={uploadError}
+            handleDocumentUpload={handleDocumentUpload}
+            onArchiveClick={handleArchiveDocument}
+            onDeleteClick={handleDeleteDocument}
+            onPreviewClick={handlePreviewDocument}
+            showArchived={showArchived}
+            setShowArchived={setShowArchived}
+          />
+        )}
       </div>
     </div>
   )
