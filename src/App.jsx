@@ -4,7 +4,7 @@ import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Login from './pages/Login';
-import JobPage from './pages/JobPage';
+import JobPage from './pages/JobPage/JobPage'; // <-- Correct import
 import { useAuth } from './context/AuthContext';
 import { useEffect } from 'react';
 import { signOut } from 'firebase/auth';
@@ -17,13 +17,11 @@ function App() {
   if (loading) return <div>Loading...</div>
 
   return (
-    
     <Layout>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<Dashboard />} />
-     
         <Route path="/inventory" element={<Inventory />} />
         <Route path="/jobs/:jobId" element={<JobPage />} />
       </Routes>
