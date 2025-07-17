@@ -1,4 +1,3 @@
-
 export default function ReceiptItem({
     receipt,
     onRename,
@@ -12,128 +11,98 @@ export default function ReceiptItem({
     saveRename,
     cancelRename,
 }) {
-    // Helper function to get file extension
-    const getFileExtension = (fileName) => {
-        if (!fileName || !fileName.includes('.')) return ''
-        return fileName.substring(fileName.lastIndexOf('.'))
+    // Validation to ensure receipt has required properties
+    if (!receipt || !receipt.id) {
+        console.error('Invalid receipt passed to ReceiptItem:', receipt)
+        return (
+            <li className="border p-3 rounded border-red-200 bg-red-50">
+                <div className="text-red-600 text-sm">Invalid receipt data</div>
+            </li>
+        )
     }
-
-    // Helper function to get file name without extension
-    const getFileNameWithoutExtension = (fileName) => {
-        if (!fileName || !fileName.includes('.')) return fileName || ''
-        return fileName.substring(0, fileName.lastIndexOf('.'))
-    }
-
-    const fileExtension = getFileExtension(receipt.fileName)
 
     return (
-        <li className={`border p-3 rounded flex justify-between items-center ${receipt.archived ? 'bg-gray-50 opacity-75' : ''
-            }`}>
+        <li className="border p-3 rounded flex justify-between items-center">
             <div className="flex flex-col max-w-[60%]">
                 {isRenaming ? (
                     <>
                         <div className="flex items-center mb-1">
                             <input
                                 type="text"
-                                value={newFileName}
+                                value={newFileName || ''}
                                 onChange={(e) => setNewFileName(e.target.value)}
-                                className="border px-2 py-1 rounded rounded-r-none flex-grow text-sm"
-                                placeholder="Enter new name"
+                                className="border px-2 py-1 rounded rounded-r-none flex-grow"
                                 autoFocus
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        saveRename()
-                                    } else if (e.key === 'Escape') {
-                                        cancelRename()
-                                    }
-                                }}
+                                placeholder="Enter filename"
                             />
-                            <span className="border border-l-0 border-gray-300 px-2 py-1 rounded-r bg-gray-100 text-gray-600 text-sm select-none">
-                                {fileExtension}
+                            <span className="border border-l-0 border-gray-300 px-2 py-1 rounded-r bg-gray-100 select-none">
+                                {(() => {
+                                    const fileName = receipt.fileName || ''
+                                    const dotIndex = fileName.lastIndexOf('.')
+                                    return dotIndex === -1 ? '' : fileName.slice(dotIndex)
+                                })()}
                             </span>
                         </div>
                         {renameError && (
                             <p className="text-red-500 text-xs mb-1">{renameError}</p>
                         )}
-                        <div className="flex gap-2">
+                        <div>
                             <button
                                 onClick={saveRename}
-                                className="text-green-600 hover:text-green-700 underline text-sm"
+                                className="text-green-600 underline mr-3 text-sm hover:text-green-700"
+                                disabled={!newFileName?.trim()}
                             >
                                 Save
                             </button>
                             <button
                                 onClick={cancelRename}
-                                className="text-gray-600 hover:text-gray-700 underline text-sm"
+                                className="text-gray-600 underline text-sm hover:text-gray-700"
                             >
                                 Cancel
                             </button>
                         </div>
                     </>
                 ) : (
-                    <>
-                        <div className="flex items-center gap-2">
-                            <a
-                                href="#!"
-                                onClick={(e) => {
-                                    e.preventDefault()
-                                    onPreview(receipt)
-                                }}
-                                className="text-blue-600 hover:text-blue-700 underline truncate max-w-full text-sm"
-                                title="Click to preview"
-                            >
-                                {receipt.fileName}
-                            </a>
-                            {receipt.archived && (
-                                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                                    Archived
-                                </span>
-                            )}
-                        </div>
-                        <span className="text-sm text-gray-500 truncate max-w-full">
-                            {receipt.uploadedAt?.seconds
-                                ? new Date(receipt.uploadedAt.seconds * 1000).toLocaleDateString()
-                                : receipt.uploadedAt
-                                    ? new Date(receipt.uploadedAt).toLocaleDateString()
-                                    : 'Unknown date'}
-                        </span>
-                        <div className="text-xs text-gray-400 space-y-1">
-                            {receipt.size && (
-                                <div>Size: {(receipt.size / 1024).toFixed(1)} KB</div>
-                            )}
-                            {receipt.uploadedBy && (
-                                <div>Uploaded by: {receipt.uploadedBy}</div>
-                            )}
-                        </div>
-                    </>
+                    <button
+                        onClick={() => onPreview(receipt)}
+                        className="text-blue-600 underline truncate max-w-full text-left hover:text-blue-700"
+                        title="Click to preview"
+                    >
+                        {receipt.fileName || 'Unnamed file'}
+                    </button>
+                )}
+                <span className="text-sm text-gray-500 truncate max-w-full">
+                    {receipt.uploadedAt?.seconds
+                        ? new Date(receipt.uploadedAt.seconds * 1000).toLocaleDateString()
+                        : 'Date unavailable'}
+                </span>
+                <span className="text-xs text-gray-400">
+                    {receipt.amount ? `Amount: $${receipt.amount}` : ''}
+                    {receipt.vendor ? ` | Vendor: ${receipt.vendor}` : ''}
+                </span>
+                {receipt.archived && (
+                    <span className="text-xs text-yellow-600 font-medium">Archived</span>
                 )}
             </div>
-
-            <div className="flex space-x-2 flex-shrink-0">
+            <div className="flex space-x-2">
                 <button
-                    onClick={() => onRename(receipt)}
-                    className="text-yellow-600 hover:text-yellow-700 underline text-sm"
+                    onClick={() => onRename(receipt)} // Pass full receipt object
+                    className="text-yellow-600 underline text-sm hover:text-yellow-700"
                     disabled={isRenaming}
-                    title="Rename receipt"
                 >
                     Rename
                 </button>
                 <button
-                    onClick={() => onArchive(receipt)}
-                    className={`${receipt.archived
-                            ? 'text-green-600 hover:text-green-700'
-                            : 'text-gray-600 hover:text-gray-700'
-                        } underline text-sm`}
+                    onClick={() => onArchive(receipt)} // Pass full receipt object
+                    className="text-gray-600 underline text-sm hover:text-gray-700"
                     disabled={isRenaming}
-                    title={receipt.archived ? 'Unarchive receipt' : 'Archive receipt'}
                 >
                     {receipt.archived ? 'Unarchive' : 'Archive'}
                 </button>
                 <button
-                    onClick={() => onDelete(receipt)}
-                    className="text-red-600 hover:text-red-700 underline text-sm"
+                    onClick={() => onDelete(receipt)} // Pass full receipt object
+                    className="text-red-600 underline text-sm hover:text-red-700"
                     disabled={isRenaming}
-                    title="Delete receipt permanently"
                 >
                     Delete
                 </button>

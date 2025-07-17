@@ -14,7 +14,7 @@ import {
   getDoc,
   writeBatch
 } from 'firebase/firestore'
-import { db, auth } from '../firebase'
+import { db } from '../firebase'
 import { useAuth } from './AuthContext'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../firebase'
@@ -64,71 +64,29 @@ export function JobProvider({ children }) {
     return () => unsubscribe()
   }, [user])
 
-  // Production-ready uploadReceiptFile function with security validation
+  // Upload receipt file to storage and create receipt document
   async function uploadReceiptFile(jobId, file) {
     if (!user) throw new Error('No user logged in')
     if (!file) throw new Error('No file provided')
-    if (!jobId) throw new Error('No job ID provided')
 
-    // Validate file type and size
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'image/webp']
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    
-    if (!allowedTypes.includes(file.type)) {
-      throw new Error('Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF.')
-    }
-    
-    if (file.size > maxSize) {
-      throw new Error('File size too large. Please upload a file smaller than 10MB.')
-    }
+    // Ensure user is authenticated
+    if (!user.uid) throw new Error('User not properly authenticated')
 
-    if (file.size === 0) {
-      throw new Error('File appears to be empty. Please select a valid file.')
-    }
-
-    // Verify user has access to this job BEFORE uploading
-    try {
-      const jobRef = doc(db, 'jobs', jobId)
-      const jobSnap = await getDoc(jobRef)
-      
-      if (!jobSnap.exists()) {
-        throw new Error('Job not found')
-      }
-      
-      const jobData = jobSnap.data()
-      if (jobData.userId !== user.uid && !jobData.assignedUsers?.includes(user.uid)) {
-        throw new Error('You do not have permission to add receipts to this job')
-      }
-    } catch (error) {
-      if (error.message.includes('permission')) {
-        throw error
-      }
-      console.error('Job verification failed:', error)
-      throw new Error('Unable to verify job access. Please try again.')
-    }
-
-    // Create secure file path
     const timestamp = Date.now()
-    const sanitizedFileName = file.name
-      .replace(/[^a-zA-Z0-9.\-_]/g, '_') // More restrictive sanitization
-      .substring(0, 100) // Limit filename length
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
     const path = `jobs/${jobId}/receipts/${timestamp}_${sanitizedFileName}`
-    
+
+    console.log('Uploading to path:', path)
+    console.log('User UID:', user.uid)
+
     const storageRef = ref(storage, path)
 
     try {
       // Upload file to storage
-      const snapshot = await uploadBytes(storageRef, file, {
-        customMetadata: {
-          uploadedBy: user.uid,
-          originalName: file.name,
-          uploadedAt: new Date().toISOString()
-        }
-      })
-      
+      const snapshot = await uploadBytes(storageRef, file)
       const downloadURL = await getDownloadURL(snapshot.ref)
 
-      // Create receipt document in Firestore with additional security fields
+      // Create receipt document in Firestore
       const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
       const docRef = await addDoc(receiptsRef, {
         fileUrl: downloadURL,
@@ -136,41 +94,36 @@ export function JobProvider({ children }) {
         storagePath: path,
         uploadedAt: serverTimestamp(),
         uploadedBy: user.email || 'Unknown',
-        uploadedByUid: user.uid,
         contentType: file.type,
         size: file.size,
         userId: user.uid,
-        jobId: jobId, // Add job reference for additional security
-        archived: false,
-        processed: false // Flag for future receipt processing
+        archived: false, // Initialize as not archived
       })
 
       return docRef.id
     } catch (error) {
-      console.error('Upload failed:', error)
-      
-      // Enhanced error handling with user-friendly messages
-      if (error.code === 'storage/unauthorized') {
-        throw new Error('Upload permission denied. Please refresh the page and try again.')
-      } else if (error.code === 'storage/quota-exceeded') {
-        throw new Error('Storage quota exceeded. Please contact support.')
-      } else if (error.code === 'storage/invalid-format') {
-        throw new Error('Invalid file format. Please try a different file.')
-      } else if (error.code === 'storage/canceled') {
-        throw new Error('Upload was canceled. Please try again.')
-      } else if (error.code === 'auth/user-token-expired') {
-        throw new Error('Session expired. Please refresh the page and try again.')
-      } else if (error.message.includes('Failed to fetch')) {
-        throw new Error('Network error. Please check your connection and try again.')
-      } else {
-        throw new Error(`Upload failed: ${error.message}`)
-      }
+      console.error('Failed to upload receipt:', error)
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        path: path,
+        userUid: user.uid
+      })
+      throw new Error('Failed to upload receipt. Please try again.')
     }
   }
 
-  // Enhanced delete receipt with better error handling
+  // Delete receipt from both storage and Firestore
   async function deleteReceipt(jobId, receiptId) {
     if (!user) throw new Error('No user logged in')
+    if (!jobId) throw new Error('Job ID is required')
+    if (!receiptId) throw new Error('Receipt ID is required')
+
+    // Validate that receiptId is a string
+    if (typeof receiptId !== 'string') {
+      console.error('Invalid receiptId type:', typeof receiptId, receiptId)
+      throw new Error('Invalid receipt ID format')
+    }
 
     try {
       // Get the receipt document to find storage path
@@ -183,70 +136,44 @@ export function JobProvider({ children }) {
 
       const receiptData = receiptSnap.data()
 
-      // Verify user has permission to delete this receipt
-      if (receiptData.userId !== user.uid && receiptData.uploadedByUid !== user.uid) {
-        throw new Error('You do not have permission to delete this receipt')
-      }
-
       // Delete from storage if storage path exists
       if (receiptData.storagePath) {
         try {
           const fileRef = ref(storage, receiptData.storagePath)
           await deleteObject(fileRef)
-          console.log('File deleted from storage successfully')
         } catch (storageError) {
           console.warn('Failed to delete file from storage:', storageError)
-          // Check if it's a "not found" error (file already deleted)
-          if (storageError.code !== 'storage/object-not-found') {
-            throw new Error('Failed to delete file from storage')
-          }
+          // Continue with Firestore deletion even if storage deletion fails
         }
       }
 
       // Delete from Firestore
       await deleteDoc(receiptDocRef)
-      console.log('Receipt document deleted successfully')
     } catch (error) {
       console.error('Failed to delete receipt:', error)
-      throw error // Re-throw the error to handle it in the component
+      throw new Error('Failed to delete receipt. Please try again.')
     }
   }
 
-  // Enhanced rename receipt with extension preservation
+  // Rename receipt in Firestore
   async function renameReceipt(jobId, receiptId, newName) {
     if (!user) throw new Error('No user logged in')
+    if (!jobId) throw new Error('Job ID is required')
+    if (!receiptId) throw new Error('Receipt ID is required')
+
+    // Validate that receiptId is a string
+    if (typeof receiptId !== 'string') {
+      console.error('Invalid receiptId type:', typeof receiptId, receiptId)
+      throw new Error('Invalid receipt ID format')
+    }
 
     const trimmedName = newName.trim()
     if (!trimmedName) throw new Error('New name cannot be empty')
 
     try {
-      // Get the current receipt to preserve extension
-      const receiptDocRef = doc(db, 'jobs', jobId, 'receipts', receiptId)
-      const receiptSnap = await getDoc(receiptDocRef)
-
-      if (!receiptSnap.exists()) {
-        throw new Error('Receipt not found')
-      }
-
-      const receiptData = receiptSnap.data()
-      const originalFileName = receiptData.fileName || ''
-      
-      // Extract original extension
-      const originalExtension = originalFileName.includes('.') 
-        ? originalFileName.substring(originalFileName.lastIndexOf('.'))
-        : ''
-
-      // Check if new name already has an extension
-      const newNameHasExtension = trimmedName.includes('.') && 
-        trimmedName.lastIndexOf('.') > trimmedName.length - 6 // Extension shouldn't be longer than 5 chars
-
-      // Preserve extension if new name doesn't have one
-      const finalFileName = newNameHasExtension 
-        ? trimmedName 
-        : trimmedName + originalExtension
-
-      await updateDoc(receiptDocRef, {
-        fileName: finalFileName,
+      const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receiptId)
+      await updateDoc(receiptDoc, {
+        fileName: trimmedName,
         updatedAt: serverTimestamp(),
         updatedBy: user.email || 'Unknown'
       })
@@ -259,11 +186,19 @@ export function JobProvider({ children }) {
   // Archive/unarchive receipt
   async function archiveReceipt(jobId, receiptId, archived = true) {
     if (!user) throw new Error('No user logged in')
+    if (!jobId) throw new Error('Job ID is required')
+    if (!receiptId) throw new Error('Receipt ID is required')
+
+    // Validate that receiptId is a string
+    if (typeof receiptId !== 'string') {
+      console.error('Invalid receiptId type:', typeof receiptId, receiptId)
+      throw new Error('Invalid receipt ID format')
+    }
 
     try {
       const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receiptId)
       await updateDoc(receiptDoc, {
-        archived: archived,
+        archived,
         archivedAt: archived ? serverTimestamp() : null,
         archivedBy: archived ? (user.email || 'Unknown') : null,
         updatedAt: serverTimestamp(),
@@ -434,7 +369,7 @@ export function JobProvider({ children }) {
     uploadReceiptFile,
     deleteReceipt,
     renameReceipt,
-    archiveReceipt,
+    archiveReceipt, // Added missing function
     updateJobOrder,
     getJobStats,
   }

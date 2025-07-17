@@ -89,7 +89,7 @@ export default function JobPage() {
   const [documents, setDocuments] = useState([])
   const [documentsLoading, setDocumentsLoading] = useState(true)
   const [documentFile, setDocumentFile] = useState(null)
-  const [showArchived, setShowArchived] = useState(false)
+  const [showArchived, setShowArchived] = useState(false) // Add this missing state
   const [budgetData, setBudgetData] = useState({})
   const [budgetLoading, setBudgetLoading] = useState(true)
 
@@ -341,31 +341,20 @@ export default function JobPage() {
     }
   ]
 
-  // Enhanced receipt upload handler
+  // FIXED: Receipt upload handler
   const handleReceiptUpload = async (e) => {
     e.preventDefault()
-    if (!receiptFile) {
-      setUploadError('Please select a file to upload')
-      return
-    }
+    if (!receiptFile) return
 
     try {
       setUploading(true)
       setUploadError(null)
-      
-      const receiptId = await uploadReceiptFile(jobId, receiptFile)
-      console.log('Receipt uploaded successfully:', receiptId)
-      
-      // Reset form
+      await uploadReceiptFile(jobId, receiptFile)
       setReceiptFile(null)
       setShowUploadForm(false)
-      
-      // Optional: Show success message
-      // You could add a success toast here
-      
     } catch (error) {
       console.error('Receipt upload failed:', error)
-      setUploadError(error.message || 'Failed to upload receipt. Please try again.')
+      setUploadError('Failed to upload receipt. Please try again.')
     } finally {
       setUploading(false)
     }
@@ -451,10 +440,14 @@ export default function JobPage() {
     e.stopPropagation()
   }
 
-  // Receipt rename handlers
-  const onRenameClick = (receiptId, currentName) => {
-    setRenamingId(receiptId)
-    setNewFileName(currentName)
+  // FIXED: Receipt rename handlers
+  const onRenameClick = (receipt) => {
+    if (!receipt || !receipt.id) {
+      console.error('Invalid receipt for rename:', receipt)
+      return
+    }
+    setRenamingId(receipt.id)
+    setNewFileName(receipt.fileName || '')
     setRenameError(null)
   }
 
@@ -464,12 +457,18 @@ export default function JobPage() {
       return
     }
 
+    if (!renamingId) {
+      setRenameError('No receipt selected for rename')
+      return
+    }
+
     try {
       await renameReceipt(jobId, renamingId, newFileName.trim())
       setRenamingId(null)
       setNewFileName('')
       setRenameError(null)
     } catch (error) {
+      console.error('Failed to rename receipt:', error)
       setRenameError('Failed to rename receipt')
     }
   }
@@ -480,23 +479,40 @@ export default function JobPage() {
     setRenameError(null)
   }
 
-  const onDeleteClick = async (receiptId) => {
+  // FIXED: Receipt delete handler - now properly extracts ID from receipt object
+  const onDeleteClick = async (receipt) => {
+    if (!receipt || !receipt.id) {
+      console.error('Invalid receipt for delete:', receipt)
+      alert('Invalid receipt selected.')
+      return
+    }
+
     if (!window.confirm('Delete this receipt? This cannot be undone.')) return
 
     try {
-      await deleteReceipt(jobId, receiptId)
+      await deleteReceipt(jobId, receipt.id) // Extract ID from receipt object
     } catch (error) {
+      console.error('Failed to delete receipt:', error)
       alert('Failed to delete receipt.')
     }
   }
 
-  // NEW: Archive handler
-  const onArchiveClick = async (receiptId) => {
+  // NEW: Receipt archive handler
+  const onArchiveClick = async (receipt) => {
+    if (!receipt || !receipt.id) {
+      console.error('Invalid receipt for archive:', receipt)
+      alert('Invalid receipt selected.')
+      return
+    }
+
+    const action = receipt.archived ? 'unarchive' : 'archive'
+    if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} this receipt?`)) return
+
     try {
-      await archiveReceipt(jobId, receiptId)
+      await archiveReceipt(jobId, receipt.id, !receipt.archived)
     } catch (error) {
-      console.error('Failed to archive receipt:', error)
-      alert(error.message || 'Failed to archive receipt')
+      console.error(`Failed to ${action} receipt:`, error)
+      alert(`Failed to ${action} receipt.`)
     }
   }
 
@@ -656,42 +672,53 @@ export default function JobPage() {
     // Preview document logic here
   }
 
+  // Preview modal renderer
   const renderPreviewModal = () => {
     if (!previewReceipt) return null
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className={`rounded-2xl max-w-4xl max-h-full overflow-auto shadow-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-white'
-          }`}>
-          <div className={`flex justify-between items-center p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'
-            }`}>
-            <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'
-              }`}>
-              {previewReceipt.fileName}
-            </h3>
-            <button
-              onClick={() => setPreviewReceipt(null)}
-              className={`p-2 rounded-lg transition-colors ${isDarkMode
-                  ? 'text-gray-400 hover:text-white hover:bg-gray-700'
-                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
-                }`}
-            >
-              ×
-            </button>
+        <div className={`relative max-w-4xl max-h-[90vh] rounded-lg overflow-hidden ${
+          isDarkMode ? 'bg-gray-800' : 'bg-white'
+        }`}>
+          <div className={`p-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex justify-between items-center">
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                {previewReceipt.fileName}
+              </h3>
+              <button
+                onClick={() => setPreviewReceipt(null)}
+                className={`p-2 rounded hover:bg-gray-100 ${isDarkMode ? 'hover:bg-gray-700 text-white' : 'text-gray-500'}`}
+              >
+                ✕
+              </button>
+            </div>
           </div>
-          <div className="p-6">
-            {previewReceipt.fileUrl && previewReceipt.contentType?.includes('image') ? (
+          <div className="p-4 overflow-auto max-h-[70vh]">
+            {previewReceipt.contentType?.includes('image') ? (
               <img
                 src={previewReceipt.fileUrl}
                 alt={previewReceipt.fileName}
-                className="max-w-full h-auto rounded-lg"
+                className="max-w-full h-auto"
               />
-            ) : (
+            ) : previewReceipt.contentType?.includes('pdf') ? (
               <iframe
                 src={previewReceipt.fileUrl}
-                className="w-full h-96 rounded-lg"
+                className="w-full h-96"
                 title={previewReceipt.fileName}
               />
+            ) : (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <p>Preview not available for this file type.</p>
+                <a
+                  href={previewReceipt.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-500 hover:text-blue-700 underline mt-2 inline-block"
+                >
+                  Open in new tab
+                </a>
+              </div>
             )}
           </div>
         </div>
