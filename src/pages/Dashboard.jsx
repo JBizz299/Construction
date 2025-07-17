@@ -1,122 +1,65 @@
+// src/pages/Dashboard.jsx
 import { useEffect, useState } from 'react';
-import { db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { useDashboardData } from '../hooks/useDashboardData';
+import { MigrationService } from '../utils/migrationScript';
 import JobBoard from '../components/JobBoard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
-import { startOfWeek, format, addDays, isAfter, isBefore } from 'date-fns';
+import DashboardStats from '../components/DashboardStats';
+import { startOfWeek, format, addDays } from 'date-fns';
+import { AlertCircle, Calendar, Users, Briefcase, Clock } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [assignments, setAssignments] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState(null);
+  const {
+    assignments,
+    subcontractors,
+    loading,
+    saving,
+    error,
+    updateAssignment,
+    getJobOptions,
+    getAssignmentStats
+  } = useDashboardData();
 
-  // currentStartDate is the first day shown on the board, default to this week's Monday
+  const [migrationService] = useState(() => new MigrationService(user?.uid));
+  const [migrationStatus, setMigrationStatus] = useState({ checked: false });
   const [currentStartDate, setCurrentStartDate] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
 
-  // Load assignments from Firestore (single doc with flat keys)
+  // Auto-migrate on first load
   useEffect(() => {
-    if (!user) return;
+    if (!user || migrationStatus.checked) return;
 
-    const fetchAssignments = async () => {
+    const performMigration = async () => {
       try {
-        setLoading(true);
-        setError(null);
-
-        const docRef = doc(db, 'users', user.uid, 'dashboard', 'assignments');
-        const docSnap = await getDoc(docRef);
-
-        if (docSnap.exists()) {
-          setAssignments(docSnap.data());
-        } else {
-          setAssignments({});
-        }
-      } catch (err) {
-        console.error('Error fetching assignments:', err);
-        setError('Failed to load assignments. Please try again.');
-      } finally {
-        setLoading(false);
+        const result = await migrationService.autoMigrateIfNeeded();
+        setMigrationStatus({
+          checked: true,
+          ...result
+        });
+      } catch (error) {
+        console.error('Migration failed:', error);
+        setMigrationStatus({
+          checked: true,
+          migrated: false,
+          error: error.message
+        });
       }
     };
 
-    fetchAssignments();
-  }, [user]);
+    performMigration();
+  }, [user, migrationService, migrationStatus.checked]);
 
-  // Save assignments to Firestore with loading state
-  const updateAssignment = async (subId, dateKey, job) => {
-    try {
-      setSaving(true);
-      setError(null);
-
-      const newAssignments = {
-        ...assignments,
-        [`${subId}-${dateKey}`]: job,
-      };
-
-      // Remove assignment if job is empty string (cleanup)
-      if (!job) {
-        delete newAssignments[`${subId}-${dateKey}`];
-      }
-
-      // Optimistically update UI
-      setAssignments(newAssignments);
-
-      // Save to Firestore
-      const docRef = doc(db, 'users', user.uid, 'dashboard', 'assignments');
-      await setDoc(docRef, newAssignments);
-
-    } catch (err) {
-      console.error('Error updating assignment:', err);
-      setError('Failed to save assignment. Please try again.');
-
-      // Revert optimistic update on error
-      const docRef = doc(db, 'users', user.uid, 'dashboard', 'assignments');
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setAssignments(docSnap.data());
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Auto-shift the board if current date is beyond the displayed week (optional)
-  useEffect(() => {
-    const checkAndUpdateDate = () => {
-      const today = new Date();
-      const weekEnd = addDays(currentStartDate, 6);
-      const newStartDate = startOfWeek(today, { weekStartsOn: 1 });
-
-      // Only update if we're past the current week AND the new date is different
-      if (isAfter(today, weekEnd) && newStartDate.getTime() !== currentStartDate.getTime()) {
-        setCurrentStartDate(newStartDate);
-      }
-    };
-
-    // Check immediately on mount
-    checkAndUpdateDate();
-
-    // Then check every minute
-    const interval = setInterval(checkAndUpdateDate, 60000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Navigate backward or forward by one day
+  // Navigation functions
   const goBackOneDay = () => setCurrentStartDate(d => addDays(d, -1));
   const goForwardOneDay = () => setCurrentStartDate(d => addDays(d, 1));
-
-  // Navigate to today
   const goToToday = () => setCurrentStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Only handle shortcuts if no modal is open
       if (document.querySelector('[role="dialog"]') || document.activeElement.tagName === 'INPUT') {
         return;
       }
@@ -138,12 +81,35 @@ export default function Dashboard() {
     return <LoadingSkeleton />;
   }
 
-  return (
-    <div className="w-full max-w-6xl mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Contractor Coordination</h1>
+  const stats = getAssignmentStats();
+  const jobOptions = getJobOptions();
 
-        {/* Status indicators */}
+  return (
+    <div className="w-full max-w-7xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Contractor Dashboard</h1>
+          <p className="text-gray-600 mt-1">Manage your team assignments and scheduling</p>
+        </div>
+
+        {/* Migration Status */}
+        {migrationStatus.migrated && (
+          <div className="bg-green-50 text-green-800 px-3 py-2 rounded-lg text-sm">
+            ✅ Data migrated successfully
+          </div>
+        )}
+      </div>
+
+      {/* Stats Cards */}
+      <DashboardStats
+        stats={stats}
+        subcontractors={subcontractors}
+        assignments={assignments}
+      />
+
+      {/* Status indicators */}
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-4">
           {saving && (
             <div className="flex items-center text-sm text-blue-600">
@@ -154,13 +120,25 @@ export default function Dashboard() {
 
           {error && (
             <div className="flex items-center text-sm text-red-600 bg-red-50 px-3 py-1 rounded">
-              <span className="mr-2">⚠️</span>
+              <AlertCircle className="w-4 h-4 mr-2" />
               {error}
             </div>
           )}
+
+          {subcontractors.length === 0 && (
+            <div className="flex items-center text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded">
+              <AlertCircle className="w-4 h-4 mr-2" />
+              No subcontractors found. Add team members from job pages to get started.
+            </div>
+          )}
+        </div>
+
+        <div className="text-sm text-gray-500">
+          {subcontractors.length} subcontractors • {jobOptions.length} jobs available
         </div>
       </div>
 
+      {/* Navigation */}
       <div className="flex justify-between items-center mb-4">
         <button
           onClick={goBackOneDay}
@@ -193,16 +171,62 @@ export default function Dashboard() {
       </div>
 
       {/* Keyboard shortcuts help */}
-      <div className="mb-4 text-sm text-gray-600">
-        <p>💡 Use ← → arrow keys to navigate, T for today, ESC to close modals</p>
+      <div className="mb-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+        <p>💡 <strong>Shortcuts:</strong> Use ← → arrow keys to navigate, <kbd>T</kbd> for today, <kbd>ESC</kbd> to close modals</p>
       </div>
 
+      {/* Job Board */}
       <JobBoard
         startDate={currentStartDate}
         assignments={assignments}
+        subcontractors={subcontractors}
+        jobOptions={jobOptions}
         onUpdate={updateAssignment}
         loading={saving}
       />
+
+      {/* Quick Actions */}
+      <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border">
+        <h3 className="font-semibold mb-3">Quick Actions</h3>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => window.open('/jobs', '_blank')}
+            className="bg-blue-100 text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+          >
+            Manage Jobs
+          </button>
+          <button
+            onClick={() => {
+              const today = new Date().toISOString().split('T')[0];
+              const unassignedSubs = subcontractors.filter(sub =>
+                !assignments[`${sub.id}-${today}`]
+              );
+              if (unassignedSubs.length > 0) {
+                alert(`${unassignedSubs.length} subcontractors available for today`);
+              } else {
+                alert('All subcontractors are assigned for today');
+              }
+            }}
+            className="bg-green-100 text-green-800 px-3 py-2 rounded-lg hover:bg-green-200 transition-colors text-sm"
+          >
+            Check Availability
+          </button>
+          <button
+            onClick={() => {
+              const weekAssignments = Object.entries(assignments).filter(([key]) => {
+                const date = new Date(key.split('-').slice(1).join('-'));
+                const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+                const weekEnd = addDays(weekStart, 6);
+                return date >= weekStart && date <= weekEnd;
+              });
+              alert(`${weekAssignments.length} assignments this week`);
+            }}
+            className="bg-purple-100 text-purple-800 px-3 py-2 rounded-lg hover:bg-purple-200 transition-colors text-sm"
+          >
+            Weekly Summary
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

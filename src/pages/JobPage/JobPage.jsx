@@ -21,7 +21,7 @@ import { auth } from '../../firebase' // Import auth from firebase config
 import OverviewTab from './OverviewTab'
 import ReceiptsTab from './ReceiptsTab'
 import TasksTab from './TasksTab'
-import TeamTab from './TeamTab'
+import EnhancedTeamTab from './EnhancedTeamTab'
 import BudgetTab from './BudgetTab'
 import DocumentsTab from './DocumentsTab'
 import { ReceiptProcessor } from "../../utils/ReceiptProcessor";
@@ -601,7 +601,9 @@ export default function JobPage() {
           />
         )}
         {tab === 'team' && (
-          <TeamTab
+          <EnhancedTeamTab
+            jobId={jobId}
+            jobName={job.name}
             team={team}
             showAddMember={showAddMember}
             setShowAddMember={setShowAddMember}
