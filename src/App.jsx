@@ -1,5 +1,5 @@
 // src/App.jsx
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import Dashboard from './pages/Dashboard';
@@ -9,6 +9,32 @@ import JobPage from './pages/JobPage/JobPage';
 import CreateJob from './pages/CreateJob';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
+
+// Protected Route Component
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) return null; // Show nothing while loading
+
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+}
+
+// Public Route Component (redirects to dashboard if already logged in)
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) return null; // Show nothing while loading
+
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+}
 
 function App() {
   const { loading } = useAuth();
@@ -31,12 +57,60 @@ function App() {
       }`}>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home isDarkMode={isDarkMode} />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/inventory" element={<Inventory />} />
-          <Route path="/create" element={<CreateJob isDarkMode={isDarkMode} />} />
-          <Route path="/job/:jobId" element={<JobPage isDarkMode={isDarkMode} />} />
+          {/* Public Routes */}
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <Login />
+              </PublicRoute>
+            }
+          />
+
+          {/* Protected Routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Home isDarkMode={isDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <ProtectedRoute>
+                <Inventory />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/create"
+            element={
+              <ProtectedRoute>
+                <CreateJob isDarkMode={isDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/job/:jobId"
+            element={
+              <ProtectedRoute>
+                <JobPage isDarkMode={isDarkMode} />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch all route - redirect to login if not authenticated, dashboard if authenticated */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Layout>
     </div>
