@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Login from './pages/Login';
 import JobPage from './pages/JobPage/JobPage';
+import CreateJob from './pages/CreateJob';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
 
@@ -30,11 +31,12 @@ function App() {
       }`}>
       <Layout>
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<Home isDarkMode={isDarkMode} />} />
           <Route path="/login" element={<Login />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/inventory" element={<Inventory />} />
-          <Route path="/jobs/:jobId" element={<JobPage />} />
+          <Route path="/create" element={<CreateJob isDarkMode={isDarkMode} />} />
+          <Route path="/job/:jobId" element={<JobPage isDarkMode={isDarkMode} />} />
         </Routes>
       </Layout>
     </div>

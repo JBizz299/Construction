@@ -540,11 +540,11 @@ export default function JobPage() {
       <div className="flex flex-wrap space-x-2 space-y-2 mb-6">
         {[
           'overview',
-          'receipts',
           'tasks',
-          'budget',
-          'documents',
           'team',
+          'budget',
+          'receipts',
+          'documents',
         ].map((key) => (
           <button
             key={key}

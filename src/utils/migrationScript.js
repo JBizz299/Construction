@@ -2,6 +2,7 @@
 import { db } from '../firebase';
 import { doc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { subcontractors } from '../data/sampleSubs';
+import { getDocs } from "firebase/firestore";
 
 export class MigrationService {
     constructor(userId) {

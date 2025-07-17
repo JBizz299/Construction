@@ -45,7 +45,7 @@ export function JobProvider({ children }) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const jobsData = snapshot.docs.map((doc) => ({
+        const jobsData = snapshot.docs.map((doc) => ({ 
           id: doc.id,
           ...doc.data(),
         }))
@@ -179,6 +179,27 @@ export function JobProvider({ children }) {
     }
   }
 
+  async function updateJobOrder(jobIds) {
+    if (!user) throw new Error('No user logged in');
+
+    try {
+      // Get a batch instance
+      const batch = db.batch();
+
+      // Update each job's order in the batch
+      jobIds.forEach((jobId, index) => {
+        const jobRef = doc(db, 'jobs', jobId);
+        batch.update(jobRef, { order: index });
+      });
+
+      // Commit the batch
+      await batch.commit();
+    } catch (e) {
+      console.error('Failed to update job order:', e);
+      throw e;
+    }
+  }
+
   const value = {
     jobs,
     addJob,
@@ -186,6 +207,7 @@ export function JobProvider({ children }) {
     uploadReceiptFile,
     deleteReceipt,
     renameReceipt,
+    updateJobOrder,
     loading,
   }
 

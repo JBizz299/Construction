@@ -64,7 +64,7 @@ export default function Layout({ children }) {
                 to="/"
                 className="text-xl font-bold text-white hover:text-orange-100 transition-colors"
               >
-                ContractorHub
+                SupplyLine
               </Link>
             </div>
 
