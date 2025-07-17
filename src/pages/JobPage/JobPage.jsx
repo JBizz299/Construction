@@ -81,7 +81,7 @@ export default function JobPage() {
         <p className="text-red-500">Job not found.</p>
         <button
           className="mt-4 text-blue-600 underline"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/', { replace: true })}
         >
           Back to Jobs
         </button>
@@ -137,29 +137,25 @@ export default function JobPage() {
 
   // Fetch documents
   useEffect(() => {
-    const fetchDocuments = async () => {
-      setDocumentsLoading(true)
-      const documentsRef = collection(db, 'jobs', jobId, 'documents')
-      const q = query(documentsRef, orderBy('uploadedAt', 'desc'))
-      const unsubscribe = onSnapshot(
-        q,
-        (snapshot) => {
-          const documentsData = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }))
-          setDocuments(documentsData)
-          setDocumentsLoading(false)
-        },
-        (error) => {
-          setDocuments([])
-          setDocumentsLoading(false)
-        }
-      )
-      return () => unsubscribe()
-    }
-
-    fetchDocuments()
+    setDocumentsLoading(true)
+    const documentsRef = collection(db, 'jobs', jobId, 'documents')
+    const q = query(documentsRef, orderBy('uploadedAt', 'desc'))
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const documentsData = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        setDocuments(documentsData)
+        setDocumentsLoading(false)
+      },
+      (error) => {
+        setDocuments([])
+        setDocumentsLoading(false)
+      }
+    )
+    return () => unsubscribe()
   }, [jobId])
 
   // Helper function to update budget from receipt data
@@ -526,7 +522,7 @@ export default function JobPage() {
       <div className="mb-6">
         <button
           className="text-blue-600 underline text-sm mb-2"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/', { replace: true })}
         >
           ← Back to Jobs
         </button>
