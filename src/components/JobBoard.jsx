@@ -1,7 +1,7 @@
 // src/components/JobBoard.jsx
-import { format, addDays, isToday } from 'date-fns';
+import { format, addDays, isToday, isWeekend } from 'date-fns';
 import JobCell from './JobCell';
-import { Users, Calendar, AlertTriangle } from 'lucide-react';
+import { User, Calendar, Clock, AlertCircle } from 'lucide-react';
 
 function JobBoard({
   startDate,
@@ -9,148 +9,163 @@ function JobBoard({
   subcontractors = [],
   jobOptions = [],
   onUpdate,
-  loading
+  loading,
+  isDarkMode = false
 }) {
-  // Build a 7-day window of dates starting from startDate
-  const days = Array.from({ length: 7 }, (_, i) =>
-    addDays(startDate, i)
-  );
+  const days = Array.from({ length: 7 }, (_, i) => addDays(startDate, i));
 
-  // Helper function to get assignment stats for a day
-  const getDayStats = (day) => {
+  // Helper to get day's assignment count
+  const getDayAssignmentCount = (day) => {
     const dayKey = format(day, 'yyyy-MM-dd');
-    const dayAssignments = Object.entries(assignments).filter(([key]) =>
-      key.endsWith(`-${dayKey}`)
-    );
-
-    return {
-      totalAssignments: dayAssignments.length,
-      uniqueJobs: new Set(dayAssignments.map(([, job]) => job)).size
-    };
+    return Object.keys(assignments).filter(key => key.endsWith(`-${dayKey}`)).length;
   };
 
-  // Helper function to get subcontractor workload
-  const getSubcontractorWorkload = (subId) => {
-    const workload = days.reduce((acc, day) => {
+  // Helper to get subcontractor utilization
+  const getSubcontractorUtilization = (subId) => {
+    const weekAssignments = days.filter(day => {
       const dayKey = format(day, 'yyyy-MM-dd');
-      const assignmentKey = `${subId}-${dayKey}`;
-      if (assignments[assignmentKey]) {
-        acc++;
-      }
-      return acc;
-    }, 0);
-
-    return {
-      assignedDays: workload,
-      utilizationRate: Math.round((workload / 7) * 100)
-    };
+      return assignments[`${subId}-${dayKey}`];
+    }).length;
+    return Math.round((weekAssignments / 7) * 100);
   };
-
-  if (subcontractors.length === 0) {
-    return (
-      <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-        <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-600 mb-2">No Subcontractors Found</h3>
-        <p className="text-gray-500 mb-4">
-          Add team members from your job pages to start scheduling
-        </p>
-        <button
-          onClick={() => window.open('/jobs', '_blank')}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          Go to Jobs
-        </button>
-      </div>
-    );
-  }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-      {/* Board Header with Day Stats */}
-      <div className="bg-gray-50 p-4 border-b">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-semibold">Weekly Schedule</h2>
-          <div className="text-sm text-gray-600">
-            {subcontractors.length} subcontractors • {jobOptions.length} jobs available
+    <div className={`rounded-2xl overflow-hidden border backdrop-blur-sm ${isDarkMode
+        ? 'bg-gray-800/50 border-gray-700'
+        : 'bg-white/80 border-gray-200 shadow-sm'
+      }`}>
+
+      {/* Header */}
+      <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700 bg-gray-800/80' : 'border-gray-200 bg-gray-50/80'
+        }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Calendar className={`w-5 h-5 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`} />
+            <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+              Weekly Schedule
+            </h2>
           </div>
-        </div>
 
-        {/* Day stats preview */}
-        <div className="grid grid-cols-7 gap-2 text-xs">
-          {days.map(day => {
-            const stats = getDayStats(day);
-            const isCurrentDay = isToday(day);
-
-            return (
-              <div
-                key={format(day, 'yyyy-MM-dd')}
-                className={`text-center p-2 rounded ${isCurrentDay ? 'bg-blue-100 text-blue-800' : 'bg-white text-gray-600'
-                  }`}
-              >
-                <div className="font-medium">{format(day, 'EEE')}</div>
-                <div>{stats.totalAssignments} assigned</div>
-                <div>{stats.uniqueJobs} jobs</div>
-              </div>
-            );
-          })}
+          <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+            {subcontractors.length} contractors • {Object.keys(assignments).length} assignments
+          </div>
         </div>
       </div>
 
-      {/* Main Schedule Grid */}
+      {/* Calendar Grid */}
       <div className="overflow-x-auto">
-        <table className="min-w-full table-fixed">
+        <table className="w-full">
           <thead>
-            <tr className="bg-gray-100">
-              <th className="w-48 p-3 text-left border-r border-gray-200">
+            <tr className={isDarkMode ? 'bg-gray-800' : 'bg-gray-50'}>
+              <th className={`w-48 p-4 text-left border-r ${isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                }`}>
                 <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Subcontractor
+                  <User className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                  <span className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                    Contractor
+                  </span>
                 </div>
               </th>
+
               {days.map(day => {
-                const dayLabel = format(day, 'EEE MM/dd');
                 const dayKey = format(day, 'yyyy-MM-dd');
                 const isCurrentDay = isToday(day);
-                const stats = getDayStats(day);
+                const isWeekendDay = isWeekend(day);
+                const assignmentCount = getDayAssignmentCount(day);
 
                 return (
                   <th
                     key={dayKey}
-                    className={`text-center p-3 border-r border-gray-200 ${isCurrentDay ? 'bg-blue-200 text-blue-900' : ''
+                    className={`p-4 text-center border-r min-w-[120px] ${isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                      } ${isCurrentDay
+                        ? isDarkMode
+                          ? 'bg-blue-900/30 text-blue-400'
+                          : 'bg-blue-50 text-blue-700'
+                        : isWeekendDay
+                          ? isDarkMode
+                            ? 'bg-gray-700/50 text-gray-400'
+                            : 'bg-gray-100 text-gray-600'
+                          : isDarkMode
+                            ? 'text-white'
+                            : 'text-gray-900'
                       }`}
-                    title={`${format(day, 'MMMM do, yyyy')} - ${stats.totalAssignments} assignments`}
                   >
-                    <div className="font-semibold">{dayLabel}</div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      {stats.totalAssignments} assigned
+                    <div className="font-semibold text-sm">
+                      {format(day, 'EEE')}
                     </div>
+                    <div className="text-xs opacity-75 mt-1">
+                      {format(day, 'MMM d')}
+                    </div>
+                    {assignmentCount > 0 && (
+                      <div className={`text-xs mt-1 px-2 py-1 rounded-full inline-block ${isDarkMode
+                          ? 'bg-gray-700 text-gray-300'
+                          : 'bg-gray-200 text-gray-600'
+                        }`}>
+                        {assignmentCount}
+                      </div>
+                    )}
                   </th>
                 );
               })}
             </tr>
           </thead>
+
           <tbody>
             {subcontractors.map((sub, index) => {
-              const workload = getSubcontractorWorkload(sub.id);
-              const isHighUtilization = workload.utilizationRate > 80;
+              const utilization = getSubcontractorUtilization(sub.id);
+              const isHighUtilization = utilization > 80;
+              const isLowUtilization = utilization < 20;
 
               return (
-                <tr key={sub.id} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                  <td className="p-3 border-r border-gray-200">
+                <tr
+                  key={sub.id}
+                  className={`border-t transition-colors hover:bg-opacity-50 ${isDarkMode
+                      ? 'border-gray-700 hover:bg-gray-700'
+                      : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                >
+                  <td className={`p-4 border-r ${isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                    }`}>
                     <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold text-sm">{sub.name}</div>
-                        <div className="text-xs text-gray-600">
+                      <div className="flex-1">
+                        <div className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'
+                          }`}>
+                          {sub.name}
+                        </div>
+                        <div className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                          }`}>
                           {sub.company && `${sub.company} • `}
                           {sub.email}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {workload.assignedDays}/7 days ({workload.utilizationRate}%)
+
+                        {/* Utilization Bar */}
+                        <div className="mt-2">
+                          <div className={`flex items-center gap-2 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>
+                            <div className={`w-16 h-1.5 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                              }`}>
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${isHighUtilization
+                                    ? 'bg-red-500'
+                                    : isLowUtilization
+                                      ? 'bg-yellow-500'
+                                      : 'bg-green-500'
+                                  }`}
+                                style={{ width: `${utilization}%` }}
+                              />
+                            </div>
+                            <span>{utilization}%</span>
+                          </div>
                         </div>
                       </div>
 
                       {isHighUtilization && (
-                        <AlertTriangle className="w-4 h-4 text-amber-500" title="High utilization" />
+                        <AlertCircle className="w-4 h-4 text-amber-500 ml-2" />
                       )}
                     </div>
                   </td>
@@ -160,11 +175,17 @@ function JobBoard({
                     const assignmentKey = `${sub.id}-${dayKey}`;
                     const assignedJob = assignments[assignmentKey] || '';
                     const isCurrentDay = isToday(day);
+                    const isWeekendDay = isWeekend(day);
 
                     return (
                       <td
                         key={dayKey}
-                        className={`p-1 border-r border-gray-200 ${isCurrentDay ? 'bg-blue-50' : ''
+                        className={`p-2 border-r ${isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                          } ${isCurrentDay
+                            ? isDarkMode ? 'bg-blue-900/10' : 'bg-blue-50/50'
+                            : isWeekendDay
+                              ? isDarkMode ? 'bg-gray-800/50' : 'bg-gray-50/50'
+                              : ''
                           }`}
                       >
                         <JobCell
@@ -175,6 +196,8 @@ function JobBoard({
                           jobOptions={jobOptions}
                           loading={loading}
                           isToday={isCurrentDay}
+                          isWeekend={isWeekendDay}
+                          isDarkMode={isDarkMode}
                         />
                       </td>
                     );
@@ -186,26 +209,12 @@ function JobBoard({
         </table>
       </div>
 
-      {/* Board Footer */}
-      <div className="bg-gray-50 p-4 border-t">
-        <div className="flex items-center justify-between text-sm text-gray-600">
-          <div>
-            Total assignments: {Object.keys(assignments).length}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-blue-200 rounded"></div>
-              <span>Today</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-green-200 rounded"></div>
-              <span>Assigned</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-gray-200 rounded"></div>
-              <span>Available</span>
-            </div>
-          </div>
+      {/* Footer */}
+      <div className={`p-4 border-t text-center ${isDarkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/50'
+        }`}>
+        <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+          }`}>
+          Click any cell to assign work • Use ← → to navigate weeks • Press T for this week
         </div>
       </div>
     </div>

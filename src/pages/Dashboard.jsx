@@ -5,9 +5,16 @@ import { useDashboardData } from '../hooks/useDashboardData';
 import { MigrationService } from '../utils/migrationScript';
 import JobBoard from '../components/JobBoard';
 import LoadingSkeleton from '../components/LoadingSkeleton';
-import DashboardStats from '../components/DashboardStats';
 import { startOfWeek, format, addDays } from 'date-fns';
-import { AlertCircle, Calendar, Users, Briefcase, Clock } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Users,
+  Clock,
+  Sun,
+  Moon
+} from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -27,6 +34,7 @@ export default function Dashboard() {
   const [currentStartDate, setCurrentStartDate] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // Auto-migrate on first load
   useEffect(() => {
@@ -35,27 +43,20 @@ export default function Dashboard() {
     const performMigration = async () => {
       try {
         const result = await migrationService.autoMigrateIfNeeded();
-        setMigrationStatus({
-          checked: true,
-          ...result
-        });
+        setMigrationStatus({ checked: true, ...result });
       } catch (error) {
         console.error('Migration failed:', error);
-        setMigrationStatus({
-          checked: true,
-          migrated: false,
-          error: error.message
-        });
+        setMigrationStatus({ checked: true, migrated: false, error: error.message });
       }
     };
 
     performMigration();
   }, [user, migrationService, migrationStatus.checked]);
 
-  // Navigation functions
-  const goBackOneDay = () => setCurrentStartDate(d => addDays(d, -1));
-  const goForwardOneDay = () => setCurrentStartDate(d => addDays(d, 1));
-  const goToToday = () => setCurrentStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  // Navigation
+  const goBackOneWeek = () => setCurrentStartDate(d => addDays(d, -7));
+  const goForwardOneWeek = () => setCurrentStartDate(d => addDays(d, 7));
+  const goToThisWeek = () => setCurrentStartDate(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -64,168 +65,189 @@ export default function Dashboard() {
         return;
       }
 
-      if (e.key === 'ArrowLeft') {
-        goBackOneDay();
-      } else if (e.key === 'ArrowRight') {
-        goForwardOneDay();
-      } else if (e.key === 't' || e.key === 'T') {
-        goToToday();
-      }
+      if (e.key === 'ArrowLeft') goBackOneWeek();
+      else if (e.key === 'ArrowRight') goForwardOneWeek();
+      else if (e.key === 't' || e.key === 'T') goToThisWeek();
+      else if (e.key === 'd' || e.key === 'D') setIsDarkMode(!isDarkMode);
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [isDarkMode]);
 
-  if (loading) {
-    return <LoadingSkeleton />;
-  }
+  if (loading) return <LoadingSkeleton />;
 
   const stats = getAssignmentStats();
   const jobOptions = getJobOptions();
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Contractor Dashboard</h1>
-          <p className="text-gray-600 mt-1">Manage your team assignments and scheduling</p>
+    <div className={`min-h-screen transition-colors duration-300 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
+      }`}>
+      <div className="max-w-7xl mx-auto px-6 py-8">
+
+        {/* Header */}
+        <div className={`rounded-2xl p-6 mb-8 backdrop-blur-sm ${isDarkMode
+            ? 'bg-gray-800/50 border border-gray-700'
+            : 'bg-white/80 border border-gray-200 shadow-sm'
+          }`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-3xl font-bold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'
+                }`}>
+                Team Schedule
+              </h1>
+              <p className={`text-lg ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                }`}>
+                {format(currentStartDate, 'MMMM d')} - {format(addDays(currentStartDate, 6), 'MMMM d, yyyy')}
+              </p>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="flex items-center gap-8">
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                  }`}>
+                  {stats.totalAssignments}
+                </div>
+                <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                  Assignments
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${isDarkMode ? 'text-green-400' : 'text-green-600'
+                  }`}>
+                  {stats.assignedSubcontractors}
+                </div>
+                <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                  Active Subs
+                </div>
+              </div>
+
+              <div className="text-center">
+                <div className={`text-2xl font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'
+                  }`}>
+                  {stats.uniqueJobs}
+                </div>
+                <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>
+                  Jobs
+                </div>
+              </div>
+            </div>
+
+            {/* Theme Toggle */}
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`p-3 rounded-xl transition-all duration-200 ${isDarkMode
+                  ? 'bg-gray-700 hover:bg-gray-600 text-yellow-400'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                }`}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
 
-        {/* Migration Status */}
-        {migrationStatus.migrated && (
-          <div className="bg-green-50 text-green-800 px-3 py-2 rounded-lg text-sm">
-            ✅ Data migrated successfully
+        {/* Navigation */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={goBackOneWeek}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 ${isDarkMode
+                ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-700'
+                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'
+              }`}
+          >
+            <ChevronLeft className="w-4 h-4" />
+            Previous Week
+          </button>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={goToThisWeek}
+              className={`px-4 py-2 text-sm rounded-lg transition-all duration-200 ${isDarkMode
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                }`}
+            >
+              This Week
+            </button>
+          </div>
+
+          <button
+            onClick={goForwardOneWeek}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-200 ${isDarkMode
+                ? 'bg-gray-800 hover:bg-gray-700 text-white border border-gray-700'
+                : 'bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm'
+              }`}
+          >
+            Next Week
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Status Bar */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-6">
+            {saving && (
+              <div className={`flex items-center gap-2 text-sm ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                }`}>
+                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                Saving changes...
+              </div>
+            )}
+
+            {error && (
+              <div className={`flex items-center gap-2 text-sm px-3 py-1 rounded-lg ${isDarkMode
+                  ? 'bg-red-900/20 text-red-400 border border-red-800'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                ⚠️ {error}
+              </div>
+            )}
+          </div>
+
+          <div className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+            }`}>
+            {subcontractors.length} contractors • {jobOptions.length} jobs • Press T for this week
+          </div>
+        </div>
+
+        {/* Main Calendar */}
+        <JobBoard
+          startDate={currentStartDate}
+          assignments={assignments}
+          subcontractors={subcontractors}
+          jobOptions={jobOptions}
+          onUpdate={updateAssignment}
+          loading={saving}
+          isDarkMode={isDarkMode}
+        />
+
+        {/* Empty State */}
+        {subcontractors.length === 0 && (
+          <div className={`text-center py-16 rounded-2xl ${isDarkMode ? 'bg-gray-800/50 border border-gray-700' : 'bg-white/80 border border-gray-200'
+            }`}>
+            <Users className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
+              }`} />
+            <h3 className={`text-xl font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'
+              }`}>
+              No Team Members Yet
+            </h3>
+            <p className={`mb-6 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              }`}>
+              Add subcontractors from your job pages to start scheduling
+            </p>
+            <button
+              onClick={() => window.open('/jobs', '_blank')}
+              className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors"
+            >
+              Go to Jobs
+            </button>
           </div>
         )}
-      </div>
-
-      {/* Stats Cards */}
-      <DashboardStats
-        stats={stats}
-        subcontractors={subcontractors}
-        assignments={assignments}
-      />
-
-      {/* Status indicators */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-4">
-          {saving && (
-            <div className="flex items-center text-sm text-blue-600">
-              <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
-              Saving...
-            </div>
-          )}
-
-          {error && (
-            <div className="flex items-center text-sm text-red-600 bg-red-50 px-3 py-1 rounded">
-              <AlertCircle className="w-4 h-4 mr-2" />
-              {error}
-            </div>
-          )}
-
-          {subcontractors.length === 0 && (
-            <div className="flex items-center text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded">
-              <AlertCircle className="w-4 h-4 mr-2" />
-              No subcontractors found. Add team members from job pages to get started.
-            </div>
-          )}
-        </div>
-
-        <div className="text-sm text-gray-500">
-          {subcontractors.length} subcontractors • {jobOptions.length} jobs available
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <div className="flex justify-between items-center mb-4">
-        <button
-          onClick={goBackOneDay}
-          className="flex items-center px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-          aria-label="Previous day (←)"
-        >
-          ← Previous Day
-        </button>
-
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={goToToday}
-            className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-            title="Go to today (T)"
-          >
-            Today
-          </button>
-          <div className="font-semibold text-lg">
-            Week of {format(currentStartDate, 'MMM dd, yyyy')}
-          </div>
-        </div>
-
-        <button
-          onClick={goForwardOneDay}
-          className="flex items-center px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-          aria-label="Next day (→)"
-        >
-          Next Day →
-        </button>
-      </div>
-
-      {/* Keyboard shortcuts help */}
-      <div className="mb-4 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-        <p>💡 <strong>Shortcuts:</strong> Use ← → arrow keys to navigate, <kbd>T</kbd> for today, <kbd>ESC</kbd> to close modals</p>
-      </div>
-
-      {/* Job Board */}
-      <JobBoard
-        startDate={currentStartDate}
-        assignments={assignments}
-        subcontractors={subcontractors}
-        jobOptions={jobOptions}
-        onUpdate={updateAssignment}
-        loading={saving}
-      />
-
-      {/* Quick Actions */}
-      <div className="mt-6 bg-white p-4 rounded-lg shadow-sm border">
-        <h3 className="font-semibold mb-3">Quick Actions</h3>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => window.open('/jobs', '_blank')}
-            className="bg-blue-100 text-blue-800 px-3 py-2 rounded-lg hover:bg-blue-200 transition-colors text-sm"
-          >
-            Manage Jobs
-          </button>
-          <button
-            onClick={() => {
-              const today = new Date().toISOString().split('T')[0];
-              const unassignedSubs = subcontractors.filter(sub =>
-                !assignments[`${sub.id}-${today}`]
-              );
-              if (unassignedSubs.length > 0) {
-                alert(`${unassignedSubs.length} subcontractors available for today`);
-              } else {
-                alert('All subcontractors are assigned for today');
-              }
-            }}
-            className="bg-green-100 text-green-800 px-3 py-2 rounded-lg hover:bg-green-200 transition-colors text-sm"
-          >
-            Check Availability
-          </button>
-          <button
-            onClick={() => {
-              const weekAssignments = Object.entries(assignments).filter(([key]) => {
-                const date = new Date(key.split('-').slice(1).join('-'));
-                const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-                const weekEnd = addDays(weekStart, 6);
-                return date >= weekStart && date <= weekEnd;
-              });
-              alert(`${weekAssignments.length} assignments this week`);
-            }}
-            className="bg-purple-100 text-purple-800 px-3 py-2 rounded-lg hover:bg-purple-200 transition-colors text-sm"
-          >
-            Weekly Summary
-          </button>
-        </div>
       </div>
     </div>
   );

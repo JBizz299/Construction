@@ -8,7 +8,8 @@ function AssignmentSidebar({
     currentAssignment,
     jobOptions = [],
     onSave,
-    onClose
+    onClose,
+    isDarkMode = false
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedJob, setSelectedJob] = useState(currentAssignment || '');
@@ -110,7 +111,7 @@ function AssignmentSidebar({
     };
 
     const getJobColor = (job) => {
-        const colors = {
+        const lightColors = {
             'kitchen': 'bg-orange-50 border-orange-200 text-orange-700',
             'bathroom': 'bg-blue-50 border-blue-200 text-blue-700',
             'basement': 'bg-purple-50 border-purple-200 text-purple-700',
@@ -126,6 +127,23 @@ function AssignmentSidebar({
             'cleanup': 'bg-gray-50 border-gray-200 text-gray-700',
         };
 
+        const darkColors = {
+            'kitchen': 'bg-orange-900/30 border-orange-700 text-orange-300',
+            'bathroom': 'bg-blue-900/30 border-blue-700 text-blue-300',
+            'basement': 'bg-purple-900/30 border-purple-700 text-purple-300',
+            'flooring': 'bg-indigo-900/30 border-indigo-700 text-indigo-300',
+            'painting': 'bg-pink-900/30 border-pink-700 text-pink-300',
+            'electrical': 'bg-yellow-900/30 border-yellow-700 text-yellow-300',
+            'plumbing': 'bg-cyan-900/30 border-cyan-700 text-cyan-300',
+            'hvac': 'bg-red-900/30 border-red-700 text-red-300',
+            'drywall': 'bg-green-900/30 border-green-700 text-green-300',
+            'framing': 'bg-amber-900/30 border-amber-700 text-amber-300',
+            'roofing': 'bg-slate-900/30 border-slate-700 text-slate-300',
+            'landscaping': 'bg-lime-900/30 border-lime-700 text-lime-300',
+            'cleanup': 'bg-gray-900/30 border-gray-700 text-gray-300',
+        };
+
+        const colors = isDarkMode ? darkColors : lightColors;
         const jobLower = job.toLowerCase();
         for (const [key, colorClass] of Object.entries(colors)) {
             if (jobLower.includes(key)) {
@@ -134,14 +152,25 @@ function AssignmentSidebar({
         }
 
         // Default colors for Jobs A, B, C, D
-        const defaultColors = {
+        const defaultLight = {
             'job a': 'bg-blue-50 border-blue-200 text-blue-700',
             'job b': 'bg-green-50 border-green-200 text-green-700',
             'job c': 'bg-purple-50 border-purple-200 text-purple-700',
             'job d': 'bg-orange-50 border-orange-200 text-orange-700',
         };
 
-        return defaultColors[jobLower] || 'bg-slate-50 border-slate-200 text-slate-700';
+        const defaultDark = {
+            'job a': 'bg-blue-900/30 border-blue-700 text-blue-300',
+            'job b': 'bg-green-900/30 border-green-700 text-green-300',
+            'job c': 'bg-purple-900/30 border-purple-700 text-purple-300',
+            'job d': 'bg-orange-900/30 border-orange-700 text-orange-300',
+        };
+
+        const defaults = isDarkMode ? defaultDark : defaultLight;
+        return defaults[jobLower] || (isDarkMode
+            ? 'bg-slate-900/30 border-slate-700 text-slate-300'
+            : 'bg-slate-50 border-slate-200 text-slate-700'
+        );
     };
 
     const renderJobItem = (job, index, isRecent = false) => {
@@ -156,10 +185,10 @@ function AssignmentSidebar({
                 onDragStart={(e) => handleDragStart(e, job)}
                 onClick={() => handleSelectJob(job)}
                 className={`
-          flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-150
-          ${isFocused ? 'bg-blue-100 border-blue-300' : 'hover:bg-gray-50'}
-          ${isSelected ? 'ring-2 ring-blue-400 bg-blue-50' : ''}
-          ${colorClass} border-2
+          flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all duration-150 border-2
+          ${isFocused ? (isDarkMode ? 'bg-blue-900/30 border-blue-600' : 'bg-blue-100 border-blue-300') : 'hover:bg-opacity-80'}
+          ${isSelected ? (isDarkMode ? 'ring-2 ring-blue-400 bg-blue-900/20' : 'ring-2 ring-blue-400 bg-blue-50') : ''}
+          ${colorClass}
         `}
             >
                 <div className="flex items-center gap-3">
@@ -174,53 +203,81 @@ function AssignmentSidebar({
 
     return (
         <div className="fixed inset-0 z-50 flex justify-end">
-            <div className="w-full max-w-md bg-white h-full shadow-xl flex flex-col border-l border-gray-200">
+            <div className={`w-full max-w-md h-full shadow-2xl flex flex-col border-l backdrop-blur-sm ${isDarkMode
+                    ? 'bg-gray-900/95 border-gray-700'
+                    : 'bg-white/95 border-gray-200'
+                }`}>
                 {/* Header */}
-                <div className="bg-gray-50 p-6 border-b border-gray-200">
+                <div className={`p-6 border-b ${isDarkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/50'
+                    }`}>
                     <div className="flex justify-between items-start mb-4">
                         <div>
-                            <h2 className="text-lg font-semibold text-gray-900">
+                            <h2 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}>
                                 Assign Job
                             </h2>
                             <div className="flex items-center gap-2 mt-1">
-                                <User className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm text-gray-600">
+                                <User className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                    }`} />
+                                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                    }`}>
                                     {subcontractor?.name || 'Unknown Contractor'}
                                 </span>
                             </div>
                             <div className="flex items-center gap-2 mt-1">
-                                <Clock className="w-4 h-4 text-gray-500" />
-                                <span className="text-sm text-gray-600">{date}</span>
+                                <Clock className={`w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                    }`} />
+                                <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'
+                                    }`}>
+                                    {date}
+                                </span>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                            className={`p-2 rounded-lg transition-colors ${isDarkMode
+                                    ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                                    : 'hover:bg-gray-200 text-gray-500 hover:text-gray-700'
+                                }`}
                             title="Close (Esc)"
                         >
-                            <X className="w-5 h-5 text-gray-500" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
 
                     {/* Current Assignment */}
                     {currentAssignment && (
-                        <div className="bg-white p-3 rounded-lg border">
-                            <div className="text-xs text-gray-500 mb-1">Current Assignment</div>
-                            <div className="font-medium text-sm">{currentAssignment}</div>
+                        <div className={`p-3 rounded-lg border ${isDarkMode
+                                ? 'bg-gray-800 border-gray-700'
+                                : 'bg-white border-gray-200'
+                            }`}>
+                            <div className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                Current Assignment
+                            </div>
+                            <div className={`font-medium text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                {currentAssignment}
+                            </div>
                         </div>
                     )}
                 </div>
 
                 {/* Search */}
-                <div className="p-4 border-b border-gray-200">
+                <div className={`p-4 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                    }`}>
                     <div className="relative">
-                        <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                        <Search className={`absolute left-3 top-3 w-4 h-4 ${isDarkMode ? 'text-gray-400' : 'text-gray-400'
+                            }`} />
                         <input
                             type="text"
                             placeholder="Search jobs..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className={`w-full pl-10 pr-4 py-2 border rounded-lg transition-colors ${isDarkMode
+                                    ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                                }`}
                             autoFocus
                         />
                     </div>
@@ -231,7 +288,8 @@ function AssignmentSidebar({
                     {/* Recent Jobs */}
                     {recentFilteredJobs.length > 0 && (
                         <div className="mb-6">
-                            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                            <h3 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
                                 <Star className="w-4 h-4 text-yellow-500" />
                                 Recent Jobs
                             </h3>
@@ -244,7 +302,8 @@ function AssignmentSidebar({
                     {/* All Jobs */}
                     {otherJobs.length > 0 && (
                         <div>
-                            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                            <h3 className={`text-sm font-medium mb-3 flex items-center gap-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                                }`}>
                                 <Briefcase className="w-4 h-4" />
                                 All Jobs ({otherJobs.length})
                             </h3>
@@ -258,23 +317,40 @@ function AssignmentSidebar({
 
                     {/* No results */}
                     {allFilteredJobs.length === 0 && (
-                        <div className="text-center py-8 text-gray-500">
-                            <Briefcase className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                            <p className="text-sm">No jobs found</p>
+                        <div className="text-center py-8">
+                            <Briefcase className={`w-12 h-12 mx-auto mb-3 ${isDarkMode ? 'text-gray-600' : 'text-gray-300'
+                                }`} />
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                No jobs found
+                            </p>
                             {searchTerm && (
-                                <p className="text-xs mt-1">Try adjusting your search term</p>
+                                <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                                    }`}>
+                                    Try adjusting your search term
+                                </p>
                             )}
                         </div>
                     )}
                 </div>
 
                 {/* Footer Actions */}
-                <div className="p-4 border-t border-gray-200 bg-gray-50">
+                <div className={`p-4 border-t ${isDarkMode ? 'border-gray-700 bg-gray-800/50' : 'border-gray-200 bg-gray-50/50'
+                    }`}>
                     {/* Selected Job Preview */}
                     {selectedJob && (
-                        <div className="mb-4 p-3 bg-white rounded-lg border">
-                            <div className="text-xs text-gray-500 mb-1">Selected Job</div>
-                            <div className="font-medium text-sm">{selectedJob}</div>
+                        <div className={`mb-4 p-3 rounded-lg border ${isDarkMode
+                                ? 'bg-gray-800 border-gray-700'
+                                : 'bg-white border-gray-200'
+                            }`}>
+                            <div className={`text-xs mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                                }`}>
+                                Selected Job
+                            </div>
+                            <div className={`font-medium text-sm ${isDarkMode ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                {selectedJob}
+                            </div>
                         </div>
                     )}
 
@@ -291,7 +367,10 @@ function AssignmentSidebar({
                         {currentAssignment && (
                             <button
                                 onClick={handleClear}
-                                className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                                className={`px-4 py-2 rounded-lg transition-colors ${isDarkMode
+                                        ? 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
+                                        : 'bg-red-100 text-red-700 hover:bg-red-200'
+                                    }`}
                             >
                                 Clear
                             </button>
@@ -299,7 +378,8 @@ function AssignmentSidebar({
                     </div>
 
                     {/* Keyboard Shortcuts */}
-                    <div className="mt-3 text-xs text-gray-500 text-center">
+                    <div className={`mt-3 text-xs text-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
                         <p>↑↓ Navigate • Enter Select • Esc Close</p>
                     </div>
                 </div>
