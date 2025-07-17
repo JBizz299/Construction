@@ -48,7 +48,7 @@ export default function JobPage() {
   const [previewReceipt, setPreviewReceipt] = useState(null)
   const [renamingId, setRenamingId] = useState(null)
   const [newFileName, setNewFileName] = useState('')
-  const [renameError, setRenameError] = useState(null) // FIXED: Added missing closing
+  const [renameError, setRenameError] = useState(null)
 
   // Tasks state
   const [tasks, setTasks] = useState([])
