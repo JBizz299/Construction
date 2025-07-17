@@ -341,23 +341,140 @@ export default function JobPage() {
     }
   ]
 
-  // FIXED: Receipt upload handler
-  const handleReceiptUpload = async (e) => {
-    e.preventDefault()
-    if (!receiptFile) return
+  // Enhanced receipt upload handler
+  const handleReceiptUpload = async () => {
+    if (!receiptFile) {
+      setUploadError('Please select a file to upload')
+      return
+    }
+
+    // Reset previous errors
+    setUploadError(null)
+    setUploading(true)
 
     try {
-      setUploading(true)
-      setUploadError(null)
-      await uploadReceiptFile(jobId, receiptFile)
+      // Validate file on client side first
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'image/webp']
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      
+      if (!allowedTypes.includes(receiptFile.type)) {
+        throw new Error('Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF.')
+      }
+      
+      if (receiptFile.size > maxSize) {
+        throw new Error('File size too large. Please upload a file smaller than 10MB.')
+      }
+
+      if (receiptFile.size === 0) {
+        throw new Error('File appears to be empty. Please select a valid file.')
+      }
+
+      // Upload the file
+      const receiptId = await uploadReceiptFile(jobId, receiptFile)
+      
+      // Success feedback
+      console.log('Receipt uploaded successfully:', receiptId)
+      
+      // Reset form
       setReceiptFile(null)
       setShowUploadForm(false)
+      
+      // Optional: Show success message
+      // You could add a success state and show a toast notification
+      
     } catch (error) {
       console.error('Receipt upload failed:', error)
-      setUploadError('Failed to upload receipt. Please try again.')
+      
+      // Set user-friendly error message
+      setUploadError(error.message || 'Failed to upload receipt. Please try again.')
+      
+      // Optional: Add retry logic for certain errors
+      if (error.message.includes('Network error') || error.message.includes('Session expired')) {
+        // Could add a retry button or automatic retry logic here
+      }
     } finally {
       setUploading(false)
     }
+  }
+
+  // Enhanced file selection handler with validation
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0]
+    setUploadError(null) // Clear previous errors
+    
+    if (!file) {
+      setReceiptFile(null)
+      return
+    }
+
+    // Client-side validation
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'image/webp']
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF.')
+      setReceiptFile(null)
+      return
+    }
+    
+    if (file.size > maxSize) {
+      setUploadError('File size too large. Please upload a file smaller than 10MB.')
+      setReceiptFile(null)
+      return
+    }
+
+    if (file.size === 0) {
+      setUploadError('File appears to be empty. Please select a valid file.')
+      setReceiptFile(null)
+      return
+    }
+
+    setReceiptFile(file)
+  }
+
+  // Enhanced drag and drop handlers
+  const handleDrop = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length === 0) return
+    
+    // Take only the first file
+    const file = files[0]
+    
+    // Use the same validation as file select
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'image/webp']
+    const maxSize = 10 * 1024 * 1024 // 10MB
+    
+    setUploadError(null)
+    
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF.')
+      return
+    }
+    
+    if (file.size > maxSize) {
+      setUploadError('File size too large. Please upload a file smaller than 10MB.')
+      return
+    }
+
+    if (file.size === 0) {
+      setUploadError('File appears to be empty. Please select a valid file.')
+      return
+    }
+
+    setReceiptFile(file)
+  }
+
+  const handleDragOver = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }
+
+  const handleDragEnter = (e) => {
+    e.preventDefault()
+    e.stopPropagation()
   }
 
   // Receipt rename handlers

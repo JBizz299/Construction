@@ -14,7 +14,7 @@ import {
   getDoc,
   writeBatch
 } from 'firebase/firestore'
-import { db } from '../firebase'
+import { db, auth } from '../firebase'
 import { useAuth } from './AuthContext'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../firebase'
@@ -64,29 +64,71 @@ export function JobProvider({ children }) {
     return () => unsubscribe()
   }, [user])
 
-  // Upload receipt file to storage and create receipt document
+  // Production-ready uploadReceiptFile function with security validation
   async function uploadReceiptFile(jobId, file) {
     if (!user) throw new Error('No user logged in')
     if (!file) throw new Error('No file provided')
+    if (!jobId) throw new Error('No job ID provided')
 
-    // Ensure user is authenticated
-    if (!user.uid) throw new Error('User not properly authenticated')
-
-    const timestamp = Date.now()
-    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
-    const path = `jobs/${jobId}/receipts/${timestamp}_${sanitizedFileName}`
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'image/webp']
+    const maxSize = 10 * 1024 * 1024 // 10MB
     
-    console.log('Uploading to path:', path)
-    console.log('User UID:', user.uid)
+    if (!allowedTypes.includes(file.type)) {
+      throw new Error('Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF.')
+    }
+    
+    if (file.size > maxSize) {
+      throw new Error('File size too large. Please upload a file smaller than 10MB.')
+    }
+
+    if (file.size === 0) {
+      throw new Error('File appears to be empty. Please select a valid file.')
+    }
+
+    // Verify user has access to this job BEFORE uploading
+    try {
+      const jobRef = doc(db, 'jobs', jobId)
+      const jobSnap = await getDoc(jobRef)
+      
+      if (!jobSnap.exists()) {
+        throw new Error('Job not found')
+      }
+      
+      const jobData = jobSnap.data()
+      if (jobData.userId !== user.uid && !jobData.assignedUsers?.includes(user.uid)) {
+        throw new Error('You do not have permission to add receipts to this job')
+      }
+    } catch (error) {
+      if (error.message.includes('permission')) {
+        throw error
+      }
+      console.error('Job verification failed:', error)
+      throw new Error('Unable to verify job access. Please try again.')
+    }
+
+    // Create secure file path
+    const timestamp = Date.now()
+    const sanitizedFileName = file.name
+      .replace(/[^a-zA-Z0-9.\-_]/g, '_') // More restrictive sanitization
+      .substring(0, 100) // Limit filename length
+    const path = `jobs/${jobId}/receipts/${timestamp}_${sanitizedFileName}`
     
     const storageRef = ref(storage, path)
 
     try {
       // Upload file to storage
-      const snapshot = await uploadBytes(storageRef, file)
+      const snapshot = await uploadBytes(storageRef, file, {
+        customMetadata: {
+          uploadedBy: user.uid,
+          originalName: file.name,
+          uploadedAt: new Date().toISOString()
+        }
+      })
+      
       const downloadURL = await getDownloadURL(snapshot.ref)
 
-      // Create receipt document in Firestore
+      // Create receipt document in Firestore with additional security fields
       const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
       const docRef = await addDoc(receiptsRef, {
         fileUrl: downloadURL,
@@ -94,21 +136,35 @@ export function JobProvider({ children }) {
         storagePath: path,
         uploadedAt: serverTimestamp(),
         uploadedBy: user.email || 'Unknown',
+        uploadedByUid: user.uid,
         contentType: file.type,
         size: file.size,
         userId: user.uid,
+        jobId: jobId, // Add job reference for additional security
+        archived: false,
+        processed: false // Flag for future receipt processing
       })
 
       return docRef.id
     } catch (error) {
-      console.error('Failed to upload receipt:', error)
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message,
-        path: path,
-        userUid: user.uid
-      })
-      throw new Error('Failed to upload receipt. Please try again.')
+      console.error('Upload failed:', error)
+      
+      // Enhanced error handling with user-friendly messages
+      if (error.code === 'storage/unauthorized') {
+        throw new Error('Upload permission denied. Please refresh the page and try again.')
+      } else if (error.code === 'storage/quota-exceeded') {
+        throw new Error('Storage quota exceeded. Please contact support.')
+      } else if (error.code === 'storage/invalid-format') {
+        throw new Error('Invalid file format. Please try a different file.')
+      } else if (error.code === 'storage/canceled') {
+        throw new Error('Upload was canceled. Please try again.')
+      } else if (error.code === 'auth/user-token-expired') {
+        throw new Error('Session expired. Please refresh the page and try again.')
+      } else if (error.message.includes('Failed to fetch')) {
+        throw new Error('Network error. Please check your connection and try again.')
+      } else {
+        throw new Error(`Upload failed: ${error.message}`)
+      }
     }
   }
 
