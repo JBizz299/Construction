@@ -1,3 +1,4 @@
+/* src/index.css */
 @import "tailwindcss";
 
 /* Base font + rendering enhancements */
@@ -12,15 +13,89 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Set up base body structure, let Tailwind handle the rest */
+/* Global dark mode styles */
+:root {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f9fafb;
+  --text-primary: #111827;
+  --text-secondary: #6b7280;
+  --border-color: #e5e7eb;
+}
+
+[data-theme="dark"] {
+  --bg-primary: #111827;
+  --bg-secondary: #1f2937;
+  --text-primary: #f9fafb;
+  --text-secondary: #d1d5db;
+  --border-color: #374151;
+}
+
+/* Set up base body structure with theme support */
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Light mode (default) */
+body.light {
+  background-color: #f9fafb;
+  color: #111827;
+}
+
+/* Dark mode */
+body.dark {
+  background-color: #111827;
+  color: #f9fafb;
+}
+
+/* Global scrollbar styling for dark mode */
+body.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+body.dark ::-webkit-scrollbar-track {
+  background: #374151;
+}
+
+body.dark ::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border-radius: 4px;
+}
+
+body.dark ::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Ensure smooth transitions for theme changes */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 /* Optional: Remove h1 font-size if using Tailwind utilities everywhere */
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+}
+
+/* Focus styles that work in both themes */
+*:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Selection styles for both themes */
+::selection {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+/* Ensure proper text rendering in dark mode */
+body.dark {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
