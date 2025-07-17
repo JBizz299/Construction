@@ -11,6 +11,7 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
+  getDoc,
   writeBatch
 } from 'firebase/firestore'
 import { db } from '../firebase'
@@ -68,9 +69,16 @@ export function JobProvider({ children }) {
     if (!user) throw new Error('No user logged in')
     if (!file) throw new Error('No file provided')
 
+    // Ensure user is authenticated
+    if (!user.uid) throw new Error('User not properly authenticated')
+
     const timestamp = Date.now()
     const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
     const path = `jobs/${jobId}/receipts/${timestamp}_${sanitizedFileName}`
+    
+    console.log('Uploading to path:', path)
+    console.log('User UID:', user.uid)
+    
     const storageRef = ref(storage, path)
 
     try {
@@ -94,6 +102,12 @@ export function JobProvider({ children }) {
       return docRef.id
     } catch (error) {
       console.error('Failed to upload receipt:', error)
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        path: path,
+        userUid: user.uid
+      })
       throw new Error('Failed to upload receipt. Please try again.')
     }
   }

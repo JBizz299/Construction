@@ -49,12 +49,12 @@ export default function TeamTab({
                 await handleAddMember();
             }
 
-            // Show success message
-            setShowSuccessMessage(`${newMember.name} added successfully${isSubcontractor ? ' and synced to dashboard' : ''}`);
-
             // Reset form
             setNewMember({ name: '', email: '', role: '', company: '', phone: '', permissions: [] });
             setShowAddMember(false);
+
+            // Optional: You could add a console.log for success instead
+            console.log(`${newMember.name} added successfully${isSubcontractor ? ' and synced to dashboard' : ''}`);
 
         } catch (error) {
             console.error('Failed to add team member:', error);
