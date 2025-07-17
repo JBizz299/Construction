@@ -22,6 +22,7 @@ const getJobColor = (job, isDarkMode = false) => {
     'roofing': 'bg-gradient-to-br from-slate-50 to-slate-100 border-slate-200 text-slate-800',
     'landscaping': 'bg-gradient-to-br from-lime-50 to-lime-100 border-lime-200 text-lime-800',
     'cleanup': 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 text-gray-800',
+    'construction': 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 text-orange-800',
   };
 
   const darkColors = {
@@ -38,6 +39,7 @@ const getJobColor = (job, isDarkMode = false) => {
     'roofing': 'bg-gradient-to-br from-slate-900/30 to-slate-800/30 border-slate-700 text-slate-300',
     'landscaping': 'bg-gradient-to-br from-lime-900/30 to-lime-800/30 border-lime-700 text-lime-300',
     'cleanup': 'bg-gradient-to-br from-gray-900/30 to-gray-800/30 border-gray-700 text-gray-300',
+    'construction': 'bg-gradient-to-br from-orange-900/30 to-orange-800/30 border-orange-700 text-orange-300',
   };
 
   const colors = isDarkMode ? darkColors : lightColors;
@@ -147,9 +149,9 @@ function JobCell({
         className={`
           relative text-sm px-3 py-3 rounded-xl cursor-pointer transition-all duration-300 border-2
           ${colorClass}
-          ${isDragOver ? 'scale-105 shadow-lg ring-2 ring-blue-400' : ''}
+          ${isDragOver ? 'scale-105 shadow-lg ring-2 ring-orange-400' : ''}
           ${isAnimating ? 'scale-105 shadow-lg' : ''}
-          ${isToday ? 'ring-2 ring-blue-400' : ''}
+          ${isToday ? 'ring-2 ring-orange-400' : ''}
           ${isWeekend ? 'opacity-60' : ''}
           ${!hasAssignment ? 'hover:scale-105 hover:shadow-md' : 'hover:shadow-lg'}
           min-h-[3.5rem] flex items-center justify-center
@@ -180,17 +182,17 @@ function JobCell({
           </div>
         )}
 
-        {/* Loading indicator */}
+        {/* Loading indicator - Orange accent */}
         {loading && (
           <div className="absolute -top-1 -right-1">
-            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+            <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
           </div>
         )}
 
-        {/* Today highlight */}
+        {/* Today highlight - Orange accent */}
         {isToday && hasAssignment && (
           <div className="absolute -top-1 -left-1">
-            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+            <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
           </div>
         )}
 

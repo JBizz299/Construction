@@ -82,9 +82,9 @@ export default function Dashboard() {
     <div className="max-w-7xl mx-auto px-6 py-8">
 
       {/* Header */}
-      <div className={`rounded-2xl p-6 mb-8 backdrop-blur-sm ${isDarkMode
-          ? 'bg-gray-800/50 border border-gray-700'
-          : 'bg-white/80 border border-gray-200 shadow-sm'
+      <div className={`rounded-2xl p-6 mb-8 backdrop-blur-sm border ${isDarkMode
+          ? 'bg-gray-800/50 border-gray-700'
+          : 'bg-white/80 border-gray-200 shadow-sm'
         }`}>
         <div className="flex items-center justify-between">
           <div>
@@ -98,7 +98,7 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Quick Stats */}
+          {/* Quick Stats - Subtle Orange Accents */}
           <div className="flex items-center gap-8">
             <div className="text-center">
               <div className={`text-2xl font-bold ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
@@ -123,7 +123,7 @@ export default function Dashboard() {
             </div>
 
             <div className="text-center">
-              <div className={`text-2xl font-bold ${isDarkMode ? 'text-purple-400' : 'text-purple-600'
+              <div className={`text-2xl font-bold ${isDarkMode ? 'text-orange-400' : 'text-orange-600'
                 }`}>
                 {stats.uniqueJobs}
               </div>
@@ -153,8 +153,8 @@ export default function Dashboard() {
           <button
             onClick={goToThisWeek}
             className={`px-4 py-2 text-sm rounded-lg transition-all duration-200 ${isDarkMode
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-blue-100 hover:bg-blue-200 text-blue-700'
+                ? 'bg-orange-600 hover:bg-orange-700 text-white'
+                : 'bg-orange-500 hover:bg-orange-600 text-white'
               }`}
           >
             This Week
@@ -177,9 +177,9 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-6">
           {saving && (
-            <div className={`flex items-center gap-2 text-sm ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
+            <div className={`flex items-center gap-2 text-sm ${isDarkMode ? 'text-orange-400' : 'text-orange-600'
               }`}>
-              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
               Saving changes...
             </div>
           )}
@@ -227,7 +227,7 @@ export default function Dashboard() {
           </p>
           <button
             onClick={() => window.open('/jobs', '_blank')}
-            className="bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-colors"
+            className="bg-orange-600 text-white px-6 py-3 rounded-xl hover:bg-orange-700 transition-colors"
           >
             Go to Jobs
           </button>
