@@ -51,7 +51,7 @@ const storage = getStorage()
 
 export default function JobPage() {
   const { jobId } = useParams()
-  const { jobs, uploadReceiptFile, deleteReceipt, renameReceipt, updateJob } = useJobs()
+  const { jobs, uploadReceiptFile, deleteReceipt, renameReceipt, archiveReceipt, updateJob } = useJobs()
   const { isDarkMode } = useTheme()
   const job = jobs.find((j) => j.id === jobId)
   const navigate = useNavigate()
@@ -342,37 +342,18 @@ export default function JobPage() {
   ]
 
   // Enhanced receipt upload handler
-  const handleReceiptUpload = async () => {
+  const handleReceiptUpload = async (e) => {
+    e.preventDefault()
     if (!receiptFile) {
       setUploadError('Please select a file to upload')
       return
     }
 
-    // Reset previous errors
-    setUploadError(null)
-    setUploading(true)
-
     try {
-      // Validate file on client side first
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf', 'image/webp']
-      const maxSize = 10 * 1024 * 1024 // 10MB
+      setUploading(true)
+      setUploadError(null)
       
-      if (!allowedTypes.includes(receiptFile.type)) {
-        throw new Error('Invalid file type. Please upload an image (JPEG, PNG, GIF, WebP) or PDF.')
-      }
-      
-      if (receiptFile.size > maxSize) {
-        throw new Error('File size too large. Please upload a file smaller than 10MB.')
-      }
-
-      if (receiptFile.size === 0) {
-        throw new Error('File appears to be empty. Please select a valid file.')
-      }
-
-      // Upload the file
       const receiptId = await uploadReceiptFile(jobId, receiptFile)
-      
-      // Success feedback
       console.log('Receipt uploaded successfully:', receiptId)
       
       // Reset form
@@ -380,18 +361,11 @@ export default function JobPage() {
       setShowUploadForm(false)
       
       // Optional: Show success message
-      // You could add a success state and show a toast notification
+      // You could add a success toast here
       
     } catch (error) {
       console.error('Receipt upload failed:', error)
-      
-      // Set user-friendly error message
       setUploadError(error.message || 'Failed to upload receipt. Please try again.')
-      
-      // Optional: Add retry logic for certain errors
-      if (error.message.includes('Network error') || error.message.includes('Session expired')) {
-        // Could add a retry button or automatic retry logic here
-      }
     } finally {
       setUploading(false)
     }
@@ -513,6 +487,16 @@ export default function JobPage() {
       await deleteReceipt(jobId, receiptId)
     } catch (error) {
       alert('Failed to delete receipt.')
+    }
+  }
+
+  // NEW: Archive handler
+  const onArchiveClick = async (receiptId) => {
+    try {
+      await archiveReceipt(jobId, receiptId)
+    } catch (error) {
+      console.error('Failed to archive receipt:', error)
+      alert(error.message || 'Failed to archive receipt')
     }
   }
 
@@ -894,6 +878,7 @@ export default function JobPage() {
                 cancelRename={cancelRename}
                 onRenameClick={onRenameClick}
                 onDeleteClick={onDeleteClick}
+                onArchiveClick={onArchiveClick}
                 previewReceipt={previewReceipt}
                 setPreviewReceipt={setPreviewReceipt}
                 renderPreviewModal={renderPreviewModal}

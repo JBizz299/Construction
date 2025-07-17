@@ -168,7 +168,7 @@ export function JobProvider({ children }) {
     }
   }
 
-  // Delete receipt from both storage and Firestore
+  // Enhanced delete receipt with better error handling
   async function deleteReceipt(jobId, receiptId) {
     if (!user) throw new Error('No user logged in')
 
@@ -183,26 +183,36 @@ export function JobProvider({ children }) {
 
       const receiptData = receiptSnap.data()
 
+      // Verify user has permission to delete this receipt
+      if (receiptData.userId !== user.uid && receiptData.uploadedByUid !== user.uid) {
+        throw new Error('You do not have permission to delete this receipt')
+      }
+
       // Delete from storage if storage path exists
       if (receiptData.storagePath) {
         try {
           const fileRef = ref(storage, receiptData.storagePath)
           await deleteObject(fileRef)
+          console.log('File deleted from storage successfully')
         } catch (storageError) {
           console.warn('Failed to delete file from storage:', storageError)
-          // Continue with Firestore deletion even if storage deletion fails
+          // Check if it's a "not found" error (file already deleted)
+          if (storageError.code !== 'storage/object-not-found') {
+            throw new Error('Failed to delete file from storage')
+          }
         }
       }
 
       // Delete from Firestore
       await deleteDoc(receiptDocRef)
+      console.log('Receipt document deleted successfully')
     } catch (error) {
       console.error('Failed to delete receipt:', error)
-      throw new Error('Failed to delete receipt. Please try again.')
+      throw error // Re-throw the error to handle it in the component
     }
   }
 
-  // Rename receipt in Firestore
+  // Enhanced rename receipt with extension preservation
   async function renameReceipt(jobId, receiptId, newName) {
     if (!user) throw new Error('No user logged in')
 
@@ -210,15 +220,58 @@ export function JobProvider({ children }) {
     if (!trimmedName) throw new Error('New name cannot be empty')
 
     try {
-      const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receiptId)
-      await updateDoc(receiptDoc, {
-        fileName: trimmedName,
+      // Get the current receipt to preserve extension
+      const receiptDocRef = doc(db, 'jobs', jobId, 'receipts', receiptId)
+      const receiptSnap = await getDoc(receiptDocRef)
+
+      if (!receiptSnap.exists()) {
+        throw new Error('Receipt not found')
+      }
+
+      const receiptData = receiptSnap.data()
+      const originalFileName = receiptData.fileName || ''
+      
+      // Extract original extension
+      const originalExtension = originalFileName.includes('.') 
+        ? originalFileName.substring(originalFileName.lastIndexOf('.'))
+        : ''
+
+      // Check if new name already has an extension
+      const newNameHasExtension = trimmedName.includes('.') && 
+        trimmedName.lastIndexOf('.') > trimmedName.length - 6 // Extension shouldn't be longer than 5 chars
+
+      // Preserve extension if new name doesn't have one
+      const finalFileName = newNameHasExtension 
+        ? trimmedName 
+        : trimmedName + originalExtension
+
+      await updateDoc(receiptDocRef, {
+        fileName: finalFileName,
         updatedAt: serverTimestamp(),
         updatedBy: user.email || 'Unknown'
       })
     } catch (error) {
       console.error('Failed to rename receipt:', error)
       throw new Error('Failed to rename receipt. Please try again.')
+    }
+  }
+
+  // Archive/unarchive receipt
+  async function archiveReceipt(jobId, receiptId, archived = true) {
+    if (!user) throw new Error('No user logged in')
+
+    try {
+      const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receiptId)
+      await updateDoc(receiptDoc, {
+        archived: archived,
+        archivedAt: archived ? serverTimestamp() : null,
+        archivedBy: archived ? (user.email || 'Unknown') : null,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email || 'Unknown'
+      })
+    } catch (error) {
+      console.error('Failed to archive receipt:', error)
+      throw new Error(`Failed to ${archived ? 'archive' : 'unarchive'} receipt. Please try again.`)
     }
   }
 
@@ -381,6 +434,7 @@ export function JobProvider({ children }) {
     uploadReceiptFile,
     deleteReceipt,
     renameReceipt,
+    archiveReceipt,
     updateJobOrder,
     getJobStats,
   }
