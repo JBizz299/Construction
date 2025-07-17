@@ -11,6 +11,7 @@ import {
   updateDoc,
   deleteDoc,
   getDocs,
+  writeBatch
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import { useAuth } from './AuthContext'
@@ -45,7 +46,7 @@ export function JobProvider({ children }) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const jobsData = snapshot.docs.map((doc) => ({ 
+        const jobsData = snapshot.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         }))
@@ -62,153 +63,256 @@ export function JobProvider({ children }) {
     return () => unsubscribe()
   }, [user])
 
-  async function uploadReceiptFile(file, jobId) {
+  // Upload receipt file to storage and create receipt document
+  async function uploadReceiptFile(jobId, file) {
     if (!user) throw new Error('No user logged in')
+    if (!file) throw new Error('No file provided')
 
-    const path = `jobs/${jobId}/receipts/${Date.now()}_${file.name}`
+    const timestamp = Date.now()
+    const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const path = `jobs/${jobId}/receipts/${timestamp}_${sanitizedFileName}`
     const storageRef = ref(storage, path)
 
-    await uploadBytes(storageRef, file)
-    const downloadURL = await getDownloadURL(storageRef)
+    try {
+      // Upload file to storage
+      const snapshot = await uploadBytes(storageRef, file)
+      const downloadURL = await getDownloadURL(snapshot.ref)
 
-    const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
-    const docRef = await addDoc(receiptsRef, {
-      fileUrl: downloadURL,
-      fileName: file.name,
-      storagePath: path,
-      uploadedAt: serverTimestamp(),
-      type: file.type,
-      userId: user.uid,
-    })
+      // Create receipt document in Firestore
+      const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
+      const docRef = await addDoc(receiptsRef, {
+        fileUrl: downloadURL,
+        fileName: file.name,
+        storagePath: path,
+        uploadedAt: serverTimestamp(),
+        uploadedBy: user.email || 'Unknown',
+        contentType: file.type,
+        size: file.size,
+        userId: user.uid,
+      })
 
-    return docRef.id
+      return docRef.id
+    } catch (error) {
+      console.error('Failed to upload receipt:', error)
+      throw new Error('Failed to upload receipt. Please try again.')
+    }
   }
 
-  async function deleteReceipt(jobId, receipt) {
+  // Delete receipt from both storage and Firestore
+  async function deleteReceipt(jobId, receiptId) {
     if (!user) throw new Error('No user logged in')
 
     try {
-      if (!receipt.storagePath) {
-        console.warn('Receipt missing storagePath. Cannot delete from storage:', receipt)
-        alert('This receipt cannot be deleted because it was uploaded before storage info was saved.')
-        return
+      // Get the receipt document to find storage path
+      const receiptDocRef = doc(db, 'jobs', jobId, 'receipts', receiptId)
+      const receiptSnap = await getDoc(receiptDocRef)
+
+      if (!receiptSnap.exists()) {
+        throw new Error('Receipt not found')
       }
 
-      const fileRef = ref(storage, receipt.storagePath)
-      await deleteObject(fileRef)
+      const receiptData = receiptSnap.data()
 
-      const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receipt.id)
-      await deleteDoc(receiptDoc)
-    } catch (e) {
-      console.error('Failed to delete receipt:', e)
-      throw e
+      // Delete from storage if storage path exists
+      if (receiptData.storagePath) {
+        try {
+          const fileRef = ref(storage, receiptData.storagePath)
+          await deleteObject(fileRef)
+        } catch (storageError) {
+          console.warn('Failed to delete file from storage:', storageError)
+          // Continue with Firestore deletion even if storage deletion fails
+        }
+      }
+
+      // Delete from Firestore
+      await deleteDoc(receiptDocRef)
+    } catch (error) {
+      console.error('Failed to delete receipt:', error)
+      throw new Error('Failed to delete receipt. Please try again.')
     }
   }
 
-  async function renameReceipt(jobId, receiptId, newName, originalName) {
-    function ensureExtension(newName, originalName) {
-      if (/\.[^/.]+$/.test(newName)) return newName
-      const extMatch = originalName.match(/\.[^/.]+$/)
-      return extMatch ? newName + extMatch[0] : newName
-    }
-
+  // Rename receipt in Firestore
+  async function renameReceipt(jobId, receiptId, newName) {
     if (!user) throw new Error('No user logged in')
+
     const trimmedName = newName.trim()
     if (!trimmedName) throw new Error('New name cannot be empty')
 
-    const finalName = ensureExtension(trimmedName, originalName)
-
     try {
       const receiptDoc = doc(db, 'jobs', jobId, 'receipts', receiptId)
-      await updateDoc(receiptDoc, { fileName: finalName })
-    } catch (e) {
-      console.error('Failed to rename receipt:', e)
-      throw e
+      await updateDoc(receiptDoc, {
+        fileName: trimmedName,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email || 'Unknown'
+      })
+    } catch (error) {
+      console.error('Failed to rename receipt:', error)
+      throw new Error('Failed to rename receipt. Please try again.')
     }
   }
 
+  // Add new job
   async function addJob(newJob) {
     if (!user) throw new Error('No user logged in')
-    const jobsRef = collection(db, 'jobs')
 
+    const jobsRef = collection(db, 'jobs')
     const jobToAdd = {
       ...newJob,
       userId: user.uid,
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      status: newJob.status || 'pending'
     }
 
     try {
       const docRef = await addDoc(jobsRef, jobToAdd)
       return docRef.id
-    } catch (e) {
-      console.error('Failed to add job:', e)
-      throw e
+    } catch (error) {
+      console.error('Failed to add job:', error)
+      throw new Error('Failed to create job. Please try again.')
     }
   }
 
+  // Update existing job
+  async function updateJob(jobId, updates) {
+    if (!user) throw new Error('No user logged in')
+    if (!jobId) throw new Error('Job ID is required')
+    if (!updates || Object.keys(updates).length === 0) {
+      throw new Error('No updates provided')
+    }
+
+    try {
+      const jobRef = doc(db, 'jobs', jobId)
+      const updateData = {
+        ...updates,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email || 'Unknown'
+      }
+
+      await updateDoc(jobRef, updateData)
+    } catch (error) {
+      console.error('Failed to update job:', error)
+      throw new Error('Failed to update job. Please try again.')
+    }
+  }
+
+  // Delete job and all associated data
   async function deleteJob(jobId) {
     if (!user) throw new Error('No user logged in')
 
     try {
-      // Delete all receipts from storage and Firestore
-      const receiptsRef = collection(db, 'jobs', jobId, 'receipts')
-      const receiptSnap = await getDocs(receiptsRef)
+      const batch = writeBatch(db)
 
-      for (const receiptDoc of receiptSnap.docs) {
-        const data = receiptDoc.data()
-        const storagePath = data.storagePath
+      // Delete all subcollections first
+      const collections = ['receipts', 'tasks', 'team', 'documents', 'budget']
 
-        if (storagePath) {
-          try {
-            const fileRef = ref(storage, storagePath)
-            await deleteObject(fileRef)
-          } catch (e) {
-            console.warn(`Failed to delete file ${storagePath} from storage`, e)
+      for (const collectionName of collections) {
+        const collectionRef = collection(db, 'jobs', jobId, collectionName)
+        const collectionSnap = await getDocs(collectionRef)
+
+        for (const docSnap of collectionSnap.docs) {
+          const data = docSnap.data()
+
+          // Handle storage cleanup for receipts and documents
+          if ((collectionName === 'receipts' || collectionName === 'documents') && data.storagePath) {
+            try {
+              const fileRef = ref(storage, data.storagePath)
+              await deleteObject(fileRef)
+            } catch (storageError) {
+              console.warn(`Failed to delete file ${data.storagePath} from storage:`, storageError)
+            }
           }
-        }
 
-        await deleteDoc(doc(db, 'jobs', jobId, 'receipts', receiptDoc.id))
+          // Add document deletion to batch
+          batch.delete(docSnap.ref)
+        }
       }
 
-      // Delete the job document itself
-      await deleteDoc(doc(db, 'jobs', jobId))
-      console.log(`Job ${jobId} and its receipts deleted`)
-    } catch (e) {
-      console.error('Failed to delete job:', e)
-      throw e
+      // Delete the main job document
+      const jobRef = doc(db, 'jobs', jobId)
+      batch.delete(jobRef)
+
+      // Commit all deletions
+      await batch.commit()
+
+      console.log(`Job ${jobId} and all associated data deleted successfully`)
+    } catch (error) {
+      console.error('Failed to delete job:', error)
+      throw new Error('Failed to delete job. Please try again.')
     }
   }
 
+  // Update job order for drag-and-drop functionality
   async function updateJobOrder(jobIds) {
-    if (!user) throw new Error('No user logged in');
+    if (!user) throw new Error('No user logged in')
+    if (!Array.isArray(jobIds)) throw new Error('Job IDs must be an array')
 
     try {
-      // Get a batch instance
-      const batch = db.batch();
+      const batch = writeBatch(db)
 
-      // Update each job's order in the batch
       jobIds.forEach((jobId, index) => {
-        const jobRef = doc(db, 'jobs', jobId);
-        batch.update(jobRef, { order: index });
-      });
+        const jobRef = doc(db, 'jobs', jobId)
+        batch.update(jobRef, {
+          order: index,
+          updatedAt: serverTimestamp(),
+          updatedBy: user.email || 'Unknown'
+        })
+      })
 
-      // Commit the batch
-      await batch.commit();
-    } catch (e) {
-      console.error('Failed to update job order:', e);
-      throw e;
+      await batch.commit()
+    } catch (error) {
+      console.error('Failed to update job order:', error)
+      throw new Error('Failed to update job order. Please try again.')
+    }
+  }
+
+  // Archive/unarchive job
+  async function archiveJob(jobId, archived = true) {
+    if (!user) throw new Error('No user logged in')
+
+    try {
+      const jobRef = doc(db, 'jobs', jobId)
+      await updateDoc(jobRef, {
+        archived,
+        archivedAt: archived ? serverTimestamp() : null,
+        archivedBy: archived ? (user.email || 'Unknown') : null,
+        updatedAt: serverTimestamp(),
+        updatedBy: user.email || 'Unknown'
+      })
+    } catch (error) {
+      console.error('Failed to archive job:', error)
+      throw new Error(`Failed to ${archived ? 'archive' : 'unarchive'} job. Please try again.`)
+    }
+  }
+
+  // Get job statistics
+  function getJobStats() {
+    const totalJobs = jobs.length
+    const activeJobs = jobs.filter(job => !job.archived && job.status !== 'completed').length
+    const completedJobs = jobs.filter(job => job.status === 'completed').length
+    const archivedJobs = jobs.filter(job => job.archived).length
+
+    return {
+      totalJobs,
+      activeJobs,
+      completedJobs,
+      archivedJobs
     }
   }
 
   const value = {
     jobs,
+    loading,
     addJob,
+    updateJob,
     deleteJob,
+    archiveJob,
     uploadReceiptFile,
     deleteReceipt,
     renameReceipt,
     updateJobOrder,
-    loading,
+    getJobStats,
   }
 
   return (
