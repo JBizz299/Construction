@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Login from './pages/Login';
 import JobPage from './pages/JobPage/JobPage';
+import JobsPage from './pages/JobsPage';
 import CreateJob from './pages/CreateJob';
 import { useAuth } from './context/AuthContext';
 import { useTheme } from './context/ThemeContext';
@@ -23,14 +24,14 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// Public Route Component (redirects to dashboard if already logged in)
+// Public Route Component (redirects to home if already logged in)
 function PublicRoute({ children }) {
   const { user, loading } = useAuth();
 
   if (loading) return null; // Show nothing while loading
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -72,7 +73,15 @@ function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <Home isDarkMode={isDarkMode} />
+                <Home />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/jobs"
+            element={
+              <ProtectedRoute>
+                <JobsPage isDarkMode={isDarkMode} />
               </ProtectedRoute>
             }
           />
@@ -109,7 +118,7 @@ function App() {
             }
           />
 
-          {/* Catch all route - redirect to login if not authenticated, dashboard if authenticated */}
+          {/* Catch all route - redirect to login if not authenticated, home if authenticated */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Layout>

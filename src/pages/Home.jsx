@@ -1,165 +1,268 @@
-import { useState, useEffect } from "react";
-import { useJobs } from "../context/JobContext";
-import { Link } from "react-router-dom";
-import JobCard from "../components/JobCard";
+// src/pages/Home.jsx - Business Overview Dashboard
+import React from 'react';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { useJobs } from '../context/JobContext';
+import { useDashboardData } from '../hooks/useDashboardData';
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Calendar,
+  Users,
+  Package,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Target,
+  Zap,
+  BarChart3,
+  Activity,
+  Plus,
+  ArrowRight,
+  Home as HomeIcon,
+  MapPin,
+  Bell
+} from 'lucide-react';
+import { format, startOfMonth, endOfMonth, subMonths, isWithinInterval } from 'date-fns';
 
-export default function Home({ isDarkMode }) {
-  const { jobs, loading, updateJobOrder, deleteJob } = useJobs();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [orderedJobs, setOrderedJobs] = useState([]);
-  const [isReordering, setIsReordering] = useState(false);
-  const [draggedItem, setDraggedItem] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+export default function Home() {
+  const { user } = useAuth();
+  const { isDarkMode } = useTheme();
+  const { jobs, loading } = useJobs();
+  const { assignments, subcontractors } = useDashboardData();
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (loading) return;
+  const [insights, setInsights] = useState([]);
 
-    // Sort jobs by their order property, fallback to creation date
-    const sortedJobs = [...jobs].sort((a, b) => {
-      if (a.order !== undefined && b.order !== undefined) {
-        return a.order - b.order;
-      }
-      return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+  // Calculate business metrics
+  const businessMetrics = React.useMemo(() => {
+    if (!jobs || jobs.length === 0) {
+      return {
+        revenue: { current: 0, previous: 0, growth: 0, trend: 'neutral' },
+        jobs: { active: 0, completed: 0, overdue: 0, total: 0 },
+        budget: { total: 0, spent: 0, utilization: 0, remaining: 0 },
+        team: { totalSubcontractors: 0, utilization: 0, assignments: 0 }
+      };
+    }
+
+    const now = new Date();
+    const thisMonth = { start: startOfMonth(now), end: endOfMonth(now) };
+    const lastMonth = { start: startOfMonth(subMonths(now, 1)), end: endOfMonth(subMonths(now, 1)) };
+
+    const filterJobsByRange = (range) => {
+      return jobs.filter(job => {
+        const jobDate = job.createdAt?.toDate ? job.createdAt.toDate() : new Date(job.createdAt);
+        return isWithinInterval(jobDate, range);
+      });
+    };
+
+    const thisMonthJobs = filterJobsByRange(thisMonth);
+    const lastMonthJobs = filterJobsByRange(lastMonth);
+
+    // Revenue calculations
+    const thisMonthRevenue = thisMonthJobs.reduce((sum, job) => sum + (job.budget?.total || 0), 0);
+    const lastMonthRevenue = lastMonthJobs.reduce((sum, job) => sum + (job.budget?.total || 0), 0);
+    const revenueGrowth = lastMonthRevenue > 0 ? ((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
+
+    // Job completion rates
+    const completedThisMonth = thisMonthJobs.filter(job => job.status === 'completed').length;
+
+    // Active projects
+    const activeJobs = jobs.filter(job => ['in-progress', 'planning'].includes(job.status));
+    const overdueJobs = activeJobs.filter(job => {
+      const deadline = job.deadline ? new Date(job.deadline) : null;
+      return deadline && deadline < now;
     });
 
-    setOrderedJobs(sortedJobs);
-  }, [jobs, loading]);
+    // Budget utilization
+    const totalBudgeted = activeJobs.reduce((sum, job) => sum + (job.budget?.total || 0), 0);
+    const totalSpent = activeJobs.reduce((sum, job) => sum + (job.budget?.spent || 0), 0);
+    const budgetUtilization = totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0;
 
-  // Filter jobs based on search query
-  const filteredJobs = orderedJobs.filter((job) =>
-    job.name && job.name.toLowerCase().includes(searchQuery.toLowerCase())
+    // Team utilization
+    const totalAssignments = assignments ? Object.keys(assignments).length : 0;
+    const activeSubcontractors = subcontractors ? subcontractors.filter(sub => sub.isActive).length : 0;
+    const teamUtilization = activeSubcontractors > 0 ? (totalAssignments / (activeSubcontractors * 7)) * 100 : 0;
+
+    return {
+      revenue: {
+        current: thisMonthRevenue,
+        previous: lastMonthRevenue,
+        growth: revenueGrowth,
+        trend: revenueGrowth >= 0 ? 'up' : 'down'
+      },
+      jobs: {
+        active: activeJobs.length,
+        completed: completedThisMonth,
+        overdue: overdueJobs.length,
+        total: jobs.length
+      },
+      budget: {
+        total: totalBudgeted,
+        spent: totalSpent,
+        utilization: budgetUtilization,
+        remaining: totalBudgeted - totalSpent
+      },
+      team: {
+        totalSubcontractors: activeSubcontractors,
+        utilization: teamUtilization,
+        assignments: totalAssignments
+      }
+    };
+  }, [jobs, assignments, subcontractors]);
+
+  // Generate smart insights
+  useEffect(() => {
+    const generateInsights = () => {
+      const newInsights = [];
+
+      // Revenue insights
+      if (businessMetrics.revenue.growth > 20) {
+        newInsights.push({
+          type: 'success',
+          title: 'Strong Revenue Growth',
+          message: `Revenue is up ${businessMetrics.revenue.growth.toFixed(1)}% this month. Consider expanding capacity.`,
+          action: 'View Revenue Trends',
+          priority: 'high'
+        });
+      } else if (businessMetrics.revenue.growth < -10) {
+        newInsights.push({
+          type: 'warning',
+          title: 'Revenue Decline',
+          message: `Revenue is down ${Math.abs(businessMetrics.revenue.growth).toFixed(1)}%. Review marketing strategies.`,
+          action: 'Analyze Trends',
+          priority: 'high'
+        });
+      }
+
+      // Overdue jobs
+      if (businessMetrics.jobs.overdue > 0) {
+        newInsights.push({
+          type: 'alert',
+          title: 'Overdue Projects',
+          message: `${businessMetrics.jobs.overdue} project${businessMetrics.jobs.overdue > 1 ? 's are' : ' is'} behind schedule.`,
+          action: 'Review Projects',
+          priority: 'urgent'
+        });
+      }
+
+      // Budget utilization
+      if (businessMetrics.budget.utilization > 90) {
+        newInsights.push({
+          type: 'warning',
+          title: 'High Budget Utilization',
+          message: `Projects are using ${businessMetrics.budget.utilization.toFixed(1)}% of budgets. Monitor for overruns.`,
+          action: 'Review Budgets',
+          priority: 'medium'
+        });
+      }
+
+      // Team utilization
+      if (businessMetrics.team.utilization < 60 && businessMetrics.team.totalSubcontractors > 0) {
+        newInsights.push({
+          type: 'info',
+          title: 'Low Team Utilization',
+          message: `Team is ${businessMetrics.team.utilization.toFixed(1)}% utilized. Consider taking on more work.`,
+          action: 'Schedule More Work',
+          priority: 'low'
+        });
+      }
+
+      setInsights(newInsights.sort((a, b) => {
+        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+        return priorityOrder[a.priority] - priorityOrder[b.priority];
+      }));
+    };
+
+    generateInsights();
+  }, [businessMetrics]);
+
+  // Get recent jobs for quick access
+  const recentJobs = jobs
+    .filter(job => ['in-progress', 'planning'].includes(job.status))
+    .slice(0, 3);
+
+  const MetricCard = ({ title, value, subtitle, trend, icon: Icon, color, onClick }) => (
+    <div
+      className={`p-6 rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg ${isDarkMode
+          ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800'
+          : 'bg-white border-gray-200 hover:bg-gray-50'
+        }`}
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between mb-4">
+        <div className={`p-3 rounded-lg ${color.bg}`}>
+          <Icon className={`w-6 h-6 ${color.text}`} />
+        </div>
+        {trend && (
+          <div className={`flex items-center gap-1 text-sm ${trend.direction === 'up' ? 'text-green-600' : 'text-red-600'
+            }`}>
+            {trend.direction === 'up' ? (
+              <TrendingUp className="w-4 h-4" />
+            ) : (
+              <TrendingDown className="w-4 h-4" />
+            )}
+            {trend.value}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h3 className={`text-sm font-medium mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+          {title}
+        </h3>
+        <p className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'
+          }`}>
+          {value}
+        </p>
+        {subtitle && (
+          <p className={`text-sm mt-1 ${isDarkMode ? 'text-gray-500' : 'text-gray-600'
+            }`}>
+            {subtitle}
+          </p>
+        )}
+      </div>
+    </div>
   );
 
-  const handleDragStart = (e, job, index) => {
-    setDraggedItem({ job, index });
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', job.id);
+  const InsightCard = ({ insight }) => {
+    const colors = {
+      success: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800', icon: 'text-green-600' },
+      warning: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-800', icon: 'text-orange-600' },
+      alert: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-800', icon: 'text-red-600' },
+      info: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', icon: 'text-blue-600' }
+    };
 
-    // Hide the default drag image
-    const emptyImg = new Image();
-    emptyImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBAAAACwAAAAAAQABAAACAkQBADs=';
-    e.dataTransfer.setDragImage(emptyImg, 0, 0);
-  };
+    const icons = {
+      success: CheckCircle,
+      warning: AlertTriangle,
+      alert: AlertTriangle,
+      info: Zap
+    };
 
-  const handleDragEnd = async (e) => {
-    if (draggedItem && dragOverIndex !== null && draggedItem.index !== dragOverIndex) {
-      setIsReordering(true);
+    const color = colors[insight.type];
+    const IconComponent = icons[insight.type];
 
-      try {
-        // Create new order for filtered jobs
-        const newFilteredJobs = [...filteredJobs];
-        const [reorderedItem] = newFilteredJobs.splice(draggedItem.index, 1);
-        newFilteredJobs.splice(dragOverIndex, 0, reorderedItem);
-
-        // Update the full ordered jobs array to maintain consistency
-        const newOrderedJobs = [...orderedJobs];
-        const sourceJob = draggedItem.job;
-        const originalSourceIndex = newOrderedJobs.findIndex(job => job.id === sourceJob.id);
-
-        if (originalSourceIndex !== -1) {
-          // Remove from original position
-          const [movedJob] = newOrderedJobs.splice(originalSourceIndex, 1);
-
-          // Find new position in the full array
-          let newIndex;
-          if (dragOverIndex === 0) {
-            newIndex = 0;
-          } else if (dragOverIndex >= newFilteredJobs.length - 1) {
-            newIndex = newOrderedJobs.length;
-          } else {
-            const targetJob = newFilteredJobs[dragOverIndex];
-            newIndex = newOrderedJobs.findIndex(job => job.id === targetJob.id);
-            if (newIndex === -1) newIndex = newOrderedJobs.length;
-          }
-
-          // Insert at new position
-          newOrderedJobs.splice(newIndex, 0, movedJob);
-
-          // Update state optimistically
-          setOrderedJobs(newOrderedJobs);
-
-          // Save to Firebase
-          await updateJobOrder(newOrderedJobs.map(job => job.id));
-        }
-      } catch (error) {
-        console.error('Failed to save job order:', error);
-        // Revert on error - refetch from jobs
-        const revertedJobs = [...jobs].sort((a, b) => {
-          if (a.order !== undefined && b.order !== undefined) {
-            return a.order - b.order;
-          }
-          return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
-        });
-        setOrderedJobs(revertedJobs);
-        alert('Failed to save job order. Please try again.');
-      } finally {
-        setIsReordering(false);
-      }
-    }
-
-    // Reset drag state
-    setDraggedItem(null);
-    setDragOverIndex(null);
-  };
-
-  const handleDragOver = (e, index) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-
-    // Only update if different
-    if (dragOverIndex !== index) {
-      setDragOverIndex(index);
-    }
-  };
-
-  const handleDragEnter = (e, index) => {
-    e.preventDefault();
-    setDragOverIndex(index);
-  };
-
-  const handleDragLeave = (e) => {
-    // Only clear if we're leaving the drop zone entirely
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX;
-    const y = e.clientY;
-
-    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
-      setDragOverIndex(null);
-    }
-  };
-
-  const handleDrop = (e, index) => {
-    e.preventDefault();
-    // Actual reordering happens in handleDragEnd
-  };
-
-  const handleDeleteJob = async (job) => {
-    if (!window.confirm(`Delete "${job.name}"? This will permanently delete the job and all its data. This cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      await deleteJob(job.id);
-      // Job will be automatically removed from the list via the real-time listener
-    } catch (error) {
-      console.error('Failed to delete job:', error);
-      alert('Failed to delete job. Please try again.');
-    }
-  };
-
-  const handleArchiveJob = async (job) => {
-    if (!window.confirm(`Archive "${job.name}"? You can restore it later from archived jobs.`)) {
-      return;
-    }
-
-    try {
-      // TODO: Implement archive functionality
-      console.log('Archive functionality not yet implemented for job:', job.id);
-      alert('Archive functionality coming soon!');
-    } catch (error) {
-      console.error('Failed to archive job:', error);
-      alert('Failed to archive job. Please try again.');
-    }
+    return (
+      <div className={`p-4 rounded-lg border ${color.bg} ${color.border}`}>
+        <div className="flex items-start gap-3">
+          <IconComponent className={`w-5 h-5 mt-0.5 ${color.icon}`} />
+          <div className="flex-1">
+            <h4 className={`font-medium ${color.text}`}>{insight.title}</h4>
+            <p className={`text-sm mt-1 ${color.text}`}>{insight.message}</p>
+            {insight.action && (
+              <button className={`text-sm font-medium mt-2 ${color.text} hover:underline`}>
+                {insight.action} →
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -167,7 +270,7 @@ export default function Home({ isDarkMode }) {
       <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Loading jobs...</p>
+          <p className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Loading dashboard...</p>
         </div>
       </div>
     );
@@ -176,148 +279,207 @@ export default function Home({ isDarkMode }) {
   return (
     <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900/50' : 'bg-gray-50/50'}`}>
       <div className="p-6 space-y-8 max-w-7xl mx-auto">
+
+        {/* Header */}
         <div className="space-y-2">
-          <h1 className={`text-4xl font-bold tracking-tight ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-            Job Management
+          <h1 className={`text-4xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Business Overview
           </h1>
-          <p className={`text-lg max-w-2xl ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-            Manage and track all your construction projects in one place
+          <p className={`text-lg max-w-2xl ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Your complete business snapshot and insights
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="relative flex-1 w-full">
-            <input
-              type="text"
-              placeholder="Search jobs..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full pl-12 pr-4 py-3 rounded-2xl border text-sm focus:outline-none
-                shadow-sm hover:shadow transition-all duration-200 focus:ring-2 focus:ring-blue-500/20
-                ${isDarkMode
-                  ? "bg-gray-800/50 border-gray-700 text-white placeholder-gray-400"
-                  : "bg-white border-gray-200 text-gray-900 placeholder-gray-500"
-                }`}
-            />
-            <svg
-              className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${isDarkMode ? "text-gray-400" : "text-gray-500"
-                }`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              />
-            </svg>
-          </div>
-          <Link
-            to="/create"
-            className={`px-6 py-3 rounded-2xl font-medium transition-all duration-200 text-sm whitespace-nowrap
-              shadow-sm hover:shadow-md active:scale-95 transform flex items-center gap-2
-              ${isDarkMode
-                ? "bg-blue-600 hover:bg-blue-700 text-white"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
-              }`}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Create Job
-          </Link>
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <MetricCard
+            title="Monthly Revenue"
+            value={`$${businessMetrics.revenue.current.toLocaleString()}`}
+            subtitle="Total contract value"
+            trend={{
+              direction: businessMetrics.revenue.trend,
+              value: `${Math.abs(businessMetrics.revenue.growth).toFixed(1)}%`
+            }}
+            icon={DollarSign}
+            color={{ bg: 'bg-green-100', text: 'text-green-600' }}
+            onClick={() => navigate('/jobs')}
+          />
+
+          <MetricCard
+            title="Active Projects"
+            value={businessMetrics.jobs.active}
+            subtitle={`${businessMetrics.jobs.overdue} overdue`}
+            icon={Activity}
+            color={{ bg: 'bg-blue-100', text: 'text-blue-600' }}
+            onClick={() => navigate('/jobs')}
+          />
+
+          <MetricCard
+            title="Budget Utilization"
+            value={`${businessMetrics.budget.utilization.toFixed(1)}%`}
+            subtitle={`$${businessMetrics.budget.remaining.toLocaleString()} remaining`}
+            icon={Target}
+            color={{ bg: 'bg-purple-100', text: 'text-purple-600' }}
+            onClick={() => navigate('/jobs')}
+          />
+
+          <MetricCard
+            title="Team Utilization"
+            value={`${businessMetrics.team.utilization.toFixed(1)}%`}
+            subtitle={`${businessMetrics.team.totalSubcontractors} subcontractors`}
+            icon={Users}
+            color={{ bg: 'bg-orange-100', text: 'text-orange-600' }}
+            onClick={() => navigate('/dashboard')}
+          />
         </div>
 
-        {filteredJobs.length === 0 ? (
-          <div className="text-center py-16">
-            <svg
-              className={`w-16 h-16 mx-auto mb-4 ${isDarkMode ? "text-gray-600" : "text-gray-400"}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1}
-                d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-              />
-            </svg>
-            <p className={`text-xl font-medium mb-2 ${isDarkMode ? "text-white" : "text-gray-900"}`}>
-              {searchQuery ? 'No jobs found' : 'No jobs yet'}
-            </p>
-            <p className={`text-base ${isDarkMode ? "text-gray-400" : "text-gray-600"}`}>
-              {searchQuery ? "Try adjusting your search" : "Get started by creating a new job"}
-            </p>
+        {/* Smart Insights */}
+        {insights.length > 0 && (
+          <div className={`rounded-2xl p-6 backdrop-blur-sm border ${isDarkMode
+              ? 'bg-gray-800/50 border-gray-700'
+              : 'bg-white/80 border-gray-200 shadow-sm'
+            }`}>
+            <div className="flex items-center gap-2 mb-4">
+              <Bell className={`w-5 h-5 ${isDarkMode ? 'text-white' : 'text-gray-900'}`} />
+              <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Smart Insights
+              </h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {insights.map((insight, index) => (
+                <InsightCard key={index} insight={insight} />
+              ))}
+            </div>
           </div>
-        ) : (
-          <div className="relative">
-            {/* Loading overlay */}
-            {isReordering && (
-              <div className="absolute inset-0 bg-black/20 backdrop-blur-sm rounded-lg z-50 flex items-center justify-center">
-                <div className={`px-6 py-3 rounded-lg ${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} shadow-lg`}>
-                  <div className="flex items-center gap-3">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-                    <span className="text-sm font-medium">Saving new order...</span>
-                  </div>
-                </div>
-              </div>
-            )}
+        )}
 
-            {/* Jobs grid */}
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredJobs.map((job, index) => (
+        {/* Recent Active Projects */}
+        {recentJobs.length > 0 && (
+          <div className={`rounded-2xl p-6 backdrop-blur-sm border ${isDarkMode
+              ? 'bg-gray-800/50 border-gray-700'
+              : 'bg-white/80 border-gray-200 shadow-sm'
+            }`}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Active Projects
+              </h2>
+              <Link
+                to="/jobs"
+                className={`flex items-center gap-2 text-sm font-medium transition-colors ${isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
+                  }`}
+              >
+                View All <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {recentJobs.map((job) => (
                 <div
                   key={job.id}
-                  draggable={!isReordering}
-                  onDragStart={(e) => handleDragStart(e, job, index)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragEnter={(e) => handleDragEnter(e, index)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, index)}
-                  className={`
-                    transition-all duration-300 select-none relative
-                    ${!isReordering ? 'cursor-grab active:cursor-grabbing' : 'cursor-not-allowed pointer-events-none'}
-                    ${dragOverIndex === index && draggedItem?.index !== index
-                      ? 'transform translate-x-2'
-                      : ''
-                    }
-                    ${draggedItem?.index === index ? 'opacity-50' : ''}
-                    hover:scale-[1.02]
-                  `}
-                  style={{
-                    transform: dragOverIndex === index && draggedItem?.index !== index
-                      ? 'translateX(8px)'
-                      : draggedItem?.index === index
-                        ? 'scale(0.98)'
-                        : 'scale(1)',
-                    transition: 'all 0.2s ease'
-                  }}
+                  className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-md cursor-pointer ${isDarkMode
+                      ? 'bg-gray-800/80 border-gray-700 hover:bg-gray-800'
+                      : 'bg-white border-gray-200 hover:bg-gray-50'
+                    }`}
+                  onClick={() => navigate(`/job/${job.id}`)}
                 >
-                  <JobCard
-                    job={job}
-                    isDarkMode={isDarkMode}
-                    onDelete={handleDeleteJob}
-                    onArchive={handleArchiveJob}
-                  />
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <h3 className={`font-medium line-clamp-1 ${isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                        {job.name}
+                      </h3>
+                      <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                        {job.client}
+                      </p>
+                    </div>
+
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${job.status === 'planning'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : job.status === 'in-progress'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                      {job.status.replace('-', ' ')}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {job.address && (
+                      <div className={`flex items-center gap-2 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                        <MapPin className="w-4 h-4" />
+                        <span className="line-clamp-1">{job.address}</span>
+                      </div>
+                    )}
+
+                    {job.budget?.total && (
+                      <div className={`flex items-center gap-2 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                        <DollarSign className="w-4 h-4" />
+                        <span>${job.budget.total.toLocaleString()}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Debug info in development */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="fixed bottom-4 right-4 bg-black/90 text-white text-xs p-3 rounded-lg shadow-lg">
-            <div>Jobs: {jobs.length} | Filtered: {filteredJobs.length}</div>
-            <div>Reordering: {isReordering.toString()}</div>
-            {draggedItem && <div>Dragging: {draggedItem.job.name}</div>}
-            {dragOverIndex !== null && <div>Over index: {dragOverIndex}</div>}
+        {/* Quick Actions */}
+        <div className={`rounded-2xl p-6 backdrop-blur-sm border ${isDarkMode
+            ? 'bg-gray-800/50 border-gray-700'
+            : 'bg-white/80 border-gray-200 shadow-sm'
+          }`}>
+          <h2 className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'
+            }`}>
+            Quick Actions
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Link
+              to="/create"
+              className="flex items-center gap-3 p-4 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+              <span className="font-medium">New Project</span>
+            </Link>
+
+            <Link
+              to="/jobs"
+              className={`flex items-center gap-3 p-4 rounded-xl transition-colors ${isDarkMode
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              <HomeIcon className="w-5 h-5" />
+              <span className="font-medium">Manage Jobs</span>
+            </Link>
+
+            <Link
+              to="/dashboard"
+              className={`flex items-center gap-3 p-4 rounded-xl transition-colors ${isDarkMode
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              <Calendar className="w-5 h-5" />
+              <span className="font-medium">Schedule Team</span>
+            </Link>
+
+            <Link
+              to="/inventory"
+              className={`flex items-center gap-3 p-4 rounded-xl transition-colors ${isDarkMode
+                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              <Package className="w-5 h-5" />
+              <span className="font-medium">Check Inventory</span>
+            </Link>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

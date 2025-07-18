@@ -89,11 +89,11 @@ export default function JobPage() {
   const [documents, setDocuments] = useState([])
   const [documentsLoading, setDocumentsLoading] = useState(true)
   const [documentFile, setDocumentFile] = useState(null)
-  const [showArchived, setShowArchived] = useState(false) // Add this missing state
+  const [showArchived, setShowArchived] = useState(false) 
   const [budgetData, setBudgetData] = useState({})
   const [budgetLoading, setBudgetLoading] = useState(true)
 
-  // Handle navigation back to home with proper state cleanup
+  // Handle navigation back to jobs page with proper state cleanup
   const handleBackToJobs = useCallback(() => {
     // Reset all tab-specific states when navigating away
     setTab('overview')
@@ -122,8 +122,8 @@ export default function JobPage() {
     setDocumentFile(null)
     setShowArchived(false)
 
-    // Navigate to home with a nice transition
-    navigate('/', { replace: true })
+    // Navigate to JobsPage with a nice transition
+    navigate('/jobs', { replace: true })
   }, [navigate])
 
   // Job not found handling with better UX
@@ -148,7 +148,7 @@ export default function JobPage() {
               }`}
             onClick={handleBackToJobs}
           >
-            <Home className="w-5 h-5" />
+            <ArrowLeft className="w-5 h-5" />
             Back to Jobs
           </button>
         </div>

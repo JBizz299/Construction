@@ -118,7 +118,7 @@ export default function CreateJob({ isDarkMode }) {
         <div className="flex items-center gap-4 pt-4">
           <button
             type="button"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/jobs")}
             className={`px-4 py-2 rounded-xl text-sm transition-all
               ${isDarkMode
                 ? "text-gray-300 hover:text-white"

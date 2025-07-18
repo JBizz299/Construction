@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import {
   Home,
+  BarChart3,
+  Briefcase,
   Calendar,
   Package,
   LogOut,
@@ -35,8 +37,9 @@ export default function Layout({ children }) {
   const isActive = (path) => location.pathname === path;
 
   const navItems = [
-    { path: '/', label: 'Jobs', icon: Home },
-    { path: '/dashboard', label: 'Dashboard', icon: Calendar },
+    { path: '/', label: 'Overview', icon: BarChart3 },     // Home becomes Overview
+    { path: '/jobs', label: 'Jobs', icon: Briefcase },    // New Jobs page
+    { path: '/dashboard', label: 'Schedule', icon: Calendar },
     { path: '/inventory', label: 'Inventory', icon: Package },
   ];
 
