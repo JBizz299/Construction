@@ -2,8 +2,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useState } from 'react';
 import {
-  Home,
   BarChart3,
   Briefcase,
   Calendar,
@@ -12,7 +12,9 @@ import {
   Sun,
   Moon,
   User,
-  HardHat
+  HardHat,
+  Settings,
+  ChevronDown
 } from 'lucide-react';
 
 export default function Layout({ children }) {
@@ -20,16 +22,14 @@ export default function Layout({ children }) {
   const { isDarkMode, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleLogout = async () => {
     try {
       await logout();
-      // The ProtectedRoute component will automatically redirect to /login
-      // But we can also explicitly navigate to be sure
       navigate('/login', { replace: true });
     } catch (error) {
       console.error('Logout failed:', error);
-      // Even if logout fails, try to redirect to login
       navigate('/login', { replace: true });
     }
   };
@@ -37,8 +37,8 @@ export default function Layout({ children }) {
   const isActive = (path) => location.pathname === path;
 
   const navItems = [
-    { path: '/', label: 'Overview', icon: BarChart3 },     // Home becomes Overview
-    { path: '/jobs', label: 'Jobs', icon: Briefcase },    // New Jobs page
+    { path: '/', label: 'Overview', icon: BarChart3 },
+    { path: '/jobs', label: 'Jobs', icon: Briefcase },
     { path: '/dashboard', label: 'Schedule', icon: Calendar },
     { path: '/inventory', label: 'Inventory', icon: Package },
   ];
@@ -101,7 +101,7 @@ export default function Layout({ children }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
 
-            {/* Logo/Brand */}
+            {/* Left side - Logo/Brand */}
             <div className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-orange-800/50' : 'bg-orange-600/30'
                 }`}>
@@ -115,7 +115,7 @@ export default function Layout({ children }) {
               </Link>
             </div>
 
-            {/* Navigation Links */}
+            {/* Center - Navigation Links */}
             <nav className="hidden md:flex items-center space-x-1">
               {navItems.map(({ path, label, icon: Icon }) => (
                 <Link
@@ -134,7 +134,7 @@ export default function Layout({ children }) {
               ))}
             </nav>
 
-            {/* Right side actions */}
+            {/* Right side - Theme toggle and User menu */}
             <div className="flex items-center gap-2">
               {/* Theme toggle */}
               <button
@@ -148,26 +148,86 @@ export default function Layout({ children }) {
                 {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
 
-              {/* User menu */}
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-600/30">
-                <User className="w-4 h-4 text-orange-200" />
-                <span className="text-sm text-orange-100 hidden sm:block">
-                  {user?.email?.split('@')[0] || 'User'}
-                </span>
-              </div>
+              {/* User menu dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isDarkMode
+                      ? 'hover:bg-orange-800/50 text-orange-200'
+                      : 'hover:bg-orange-600/30 text-orange-100'
+                    }`}
+                  aria-label="User menu"
+                >
+                  <User className="w-4 h-4" />
+                  <ChevronDown className="w-3 h-3" />
+                </button>
 
-              {/* Logout button */}
-              <button
-                onClick={handleLogout}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isDarkMode
-                    ? 'text-orange-200 hover:text-white hover:bg-red-600/50'
-                    : 'text-orange-100 hover:text-white hover:bg-red-500/50'
-                  }`}
-                aria-label="Sign out"
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="hidden sm:block">Sign Out</span>
-              </button>
+                {/* Dropdown menu */}
+                {showUserMenu && (
+                  <>
+                    {/* Backdrop to close menu */}
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowUserMenu(false)}
+                    />
+                    
+                    {/* Menu */}
+                    <div className={`absolute right-0 top-full mt-2 w-48 rounded-lg shadow-lg border py-1 z-20 ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-700' 
+                        : 'bg-white border-gray-200'
+                    }`}>
+                      {/* User info */}
+                      <div className={`px-4 py-2 border-b ${
+                        isDarkMode ? 'border-gray-700' : 'border-gray-200'
+                      }`}>
+                        <p className={`text-sm font-medium ${
+                          isDarkMode ? 'text-white' : 'text-gray-900'
+                        }`}>
+                          {user?.email?.split('@')[0] || 'User'}
+                        </p>
+                        <p className={`text-xs ${
+                          isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                        }`}>
+                          {user?.email || 'user@example.com'}
+                        </p>
+                      </div>
+
+                      {/* Menu items */}
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          // TODO: Navigate to user settings
+                          console.log('Navigate to user settings');
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                          isDarkMode 
+                            ? 'text-gray-300 hover:bg-gray-700' 
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <Settings className="w-4 h-4" />
+                        Account Settings
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setShowUserMenu(false);
+                          handleLogout();
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                          isDarkMode 
+                            ? 'text-red-400 hover:bg-red-900/20' 
+                            : 'text-red-600 hover:bg-red-50'
+                        }`}
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -195,7 +255,7 @@ export default function Layout({ children }) {
         </div>
       </nav>
 
-      {/* Main content */}
+      {/* Main content with proper spacing */}
       <main className="flex-1">
         {children}
       </main>

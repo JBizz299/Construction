@@ -1,5 +1,5 @@
-// src/context/ThemeContext.jsx
-import { createContext, useContext, useState, useEffect } from 'react';
+// src/context/ThemeContext.jsx - Updated with graph paper background
+import { createContext, useContext, useEffect, useState } from 'react';
 
 const ThemeContext = createContext();
 
@@ -14,49 +14,57 @@ export function useTheme() {
 export function ThemeProvider({ children }) {
     const [isDarkMode, setIsDarkMode] = useState(false);
 
-    // Load theme from localStorage on mount
     useEffect(() => {
+        // Check localStorage for saved theme preference
         const savedTheme = localStorage.getItem('theme');
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
         if (savedTheme) {
             setIsDarkMode(savedTheme === 'dark');
         } else {
-            // Use system preference if no saved preference
-            setIsDarkMode(prefersDark);
+            // Default to system preference
+            setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
         }
     }, []);
 
-    // Apply theme to document when it changes
     useEffect(() => {
-        const theme = isDarkMode ? 'dark' : 'light';
+        // Apply theme to document
+        const root = document.documentElement;
+        const body = document.body;
 
-        // Save to localStorage
-        localStorage.setItem('theme', theme);
+        // Clear all previous classes first
+        body.classList.remove('dark', 'light', 'graph-paper', 'graph-paper-dark');
 
-        // Apply to document
-        document.documentElement.setAttribute('data-theme', theme);
-        document.body.className = theme;
+        if (isDarkMode) {
+            root.setAttribute('data-theme', 'dark');
+            body.classList.add('dark');
+            body.classList.add('graph-paper-dark');
+            
+            // Force apply dark graph paper background inline as fallback
+            body.style.backgroundImage = 'linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px)';
+            body.style.backgroundSize = '20px 20px';
+            body.style.backgroundColor = '#111827';
+            
+            console.log('Applied dark theme with graph-paper-dark class');
+        } else {
+            root.setAttribute('data-theme', 'light');
+            body.classList.add('light');
+            body.classList.add('graph-paper');
+            
+            // Force apply light graph paper background inline as fallback
+            body.style.backgroundImage = 'linear-gradient(rgba(0, 0, 0, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.1) 1px, transparent 1px)';
+            body.style.backgroundSize = '20px 20px';
+            body.style.backgroundColor = '#fafafa';
+            
+            console.log('Applied light theme with graph-paper class');
+        }
 
-        // Also add to html element for broader compatibility
-        document.documentElement.className = theme;
+        // Debug: log current body classes
+        console.log('Current body classes:', body.className);
+        console.log('Current body classList:', Array.from(body.classList));
+        console.log('Current body style:', body.style.cssText);
 
+        // Save theme preference
+        localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
     }, [isDarkMode]);
-
-    // Listen for system theme changes
-    useEffect(() => {
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-        const handleChange = (e) => {
-            // Only auto-switch if user hasn't set a preference
-            if (!localStorage.getItem('theme')) {
-                setIsDarkMode(e.matches);
-            }
-        };
-
-        mediaQuery.addEventListener('change', handleChange);
-        return () => mediaQuery.removeEventListener('change', handleChange);
-    }, []);
 
     const toggleTheme = () => {
         setIsDarkMode(!isDarkMode);
@@ -64,9 +72,7 @@ export function ThemeProvider({ children }) {
 
     const value = {
         isDarkMode,
-        setIsDarkMode,
         toggleTheme,
-        theme: isDarkMode ? 'dark' : 'light'
     };
 
     return (

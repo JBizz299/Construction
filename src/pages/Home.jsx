@@ -1,4 +1,4 @@
-// src/pages/Home.jsx - Business Overview Dashboard
+// src/pages/Home.jsx - With Construction UI Applied
 import React from 'react';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useJobs } from '../context/JobContext';
 import { useDashboardData } from '../hooks/useDashboardData';
+import { ConstructionCard, ConstructionButton, ConstructionPage, ConstructionGrid, ConstructionSection, ConstructionLoading } from '../components/ConstructionUI';
 import {
   TrendingUp,
   TrendingDown,
@@ -186,11 +187,8 @@ export default function Home() {
     .slice(0, 3);
 
   const MetricCard = ({ title, value, subtitle, trend, icon: Icon, color, onClick }) => (
-    <div
-      className={`p-6 rounded-xl border cursor-pointer transition-all duration-200 hover:shadow-lg ${isDarkMode
-          ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800'
-          : 'bg-white border-gray-200 hover:bg-gray-50'
-        }`}
+    <ConstructionCard
+      className="p-6 cursor-pointer"
       onClick={onClick}
     >
       <div className="flex items-center justify-between mb-4">
@@ -226,7 +224,7 @@ export default function Home() {
           </p>
         )}
       </div>
-    </div>
+    </ConstructionCard>
   );
 
   const InsightCard = ({ insight }) => {
@@ -266,103 +264,84 @@ export default function Home() {
   };
 
   if (loading) {
-    return (
-      <div className={`min-h-screen flex items-center justify-center ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className={`text-lg ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Loading dashboard...</p>
-        </div>
-      </div>
-    );
+    return <ConstructionLoading text="Loading dashboard..." />;
   }
 
   return (
-    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900/50' : 'bg-gray-50/50'}`}>
-      <div className="p-6 space-y-8 max-w-7xl mx-auto">
+    <ConstructionPage
+      title="Business Overview"
+      subtitle="Your complete business snapshot and insights"
+    >
+      {/* Key Metrics */}
+      <ConstructionGrid cols={4} className="mb-8">
+        <MetricCard
+          title="Monthly Revenue"
+          value={`$${businessMetrics.revenue.current.toLocaleString()}`}
+          subtitle="Total contract value"
+          trend={{
+            direction: businessMetrics.revenue.trend,
+            value: `${Math.abs(businessMetrics.revenue.growth).toFixed(1)}%`
+          }}
+          icon={DollarSign}
+          color={{ bg: 'bg-green-100', text: 'text-green-600' }}
+          onClick={() => navigate('/jobs')}
+        />
 
-        {/* Header */}
-        <div className="space-y-2">
-          <h1 className={`text-4xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-            Business Overview
-          </h1>
-          <p className={`text-lg max-w-2xl ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-            Your complete business snapshot and insights
-          </p>
-        </div>
+        <MetricCard
+          title="Active Projects"
+          value={businessMetrics.jobs.active}
+          subtitle={`${businessMetrics.jobs.overdue} overdue`}
+          icon={Activity}
+          color={{ bg: 'bg-blue-100', text: 'text-blue-600' }}
+          onClick={() => navigate('/jobs')}
+        />
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <MetricCard
-            title="Monthly Revenue"
-            value={`$${businessMetrics.revenue.current.toLocaleString()}`}
-            subtitle="Total contract value"
-            trend={{
-              direction: businessMetrics.revenue.trend,
-              value: `${Math.abs(businessMetrics.revenue.growth).toFixed(1)}%`
-            }}
-            icon={DollarSign}
-            color={{ bg: 'bg-green-100', text: 'text-green-600' }}
-            onClick={() => navigate('/jobs')}
-          />
+        <MetricCard
+          title="Budget Utilization"
+          value={`${businessMetrics.budget.utilization.toFixed(1)}%`}
+          subtitle={`$${businessMetrics.budget.remaining.toLocaleString()} remaining`}
+          icon={Target}
+          color={{ bg: 'bg-purple-100', text: 'text-purple-600' }}
+          onClick={() => navigate('/jobs')}
+        />
 
-          <MetricCard
-            title="Active Projects"
-            value={businessMetrics.jobs.active}
-            subtitle={`${businessMetrics.jobs.overdue} overdue`}
-            icon={Activity}
-            color={{ bg: 'bg-blue-100', text: 'text-blue-600' }}
-            onClick={() => navigate('/jobs')}
-          />
+        <MetricCard
+          title="Team Utilization"
+          value={`${businessMetrics.team.utilization.toFixed(1)}%`}
+          subtitle={`${businessMetrics.team.totalSubcontractors} subcontractors`}
+          icon={Users}
+          color={{ bg: 'bg-orange-100', text: 'text-orange-600' }}
+          onClick={() => navigate('/dashboard')}
+        />
+      </ConstructionGrid>
 
-          <MetricCard
-            title="Budget Utilization"
-            value={`${businessMetrics.budget.utilization.toFixed(1)}%`}
-            subtitle={`$${businessMetrics.budget.remaining.toLocaleString()} remaining`}
-            icon={Target}
-            color={{ bg: 'bg-purple-100', text: 'text-purple-600' }}
-            onClick={() => navigate('/jobs')}
-          />
-
-          <MetricCard
-            title="Team Utilization"
-            value={`${businessMetrics.team.utilization.toFixed(1)}%`}
-            subtitle={`${businessMetrics.team.totalSubcontractors} subcontractors`}
-            icon={Users}
-            color={{ bg: 'bg-orange-100', text: 'text-orange-600' }}
-            onClick={() => navigate('/dashboard')}
-          />
-        </div>
-
-        {/* Smart Insights */}
-        {insights.length > 0 && (
-          <div className={`rounded-2xl p-6 backdrop-blur-sm border ${isDarkMode
-              ? 'bg-gray-800/50 border-gray-700'
-              : 'bg-white/80 border-gray-200 shadow-sm'
-            }`}>
+      {/* Smart Insights */}
+      {insights.length > 0 && (
+        <ConstructionSection title="Smart Insights" className="mb-8">
+          <ConstructionCard className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Bell className={`w-5 h-5 ${isDarkMode ? 'text-white' : 'text-gray-900'}`} />
-              <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Smart Insights
-              </h2>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Business Alerts
+              </h3>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ConstructionGrid cols={2}>
               {insights.map((insight, index) => (
                 <InsightCard key={index} insight={insight} />
               ))}
-            </div>
-          </div>
-        )}
+            </ConstructionGrid>
+          </ConstructionCard>
+        </ConstructionSection>
+      )}
 
-        {/* Recent Active Projects */}
-        {recentJobs.length > 0 && (
-          <div className={`rounded-2xl p-6 backdrop-blur-sm border ${isDarkMode
-              ? 'bg-gray-800/50 border-gray-700'
-              : 'bg-white/80 border-gray-200 shadow-sm'
-            }`}>
+      {/* Recent Active Projects */}
+      {recentJobs.length > 0 && (
+        <ConstructionSection title="Active Projects" className="mb-8">
+          <ConstructionCard className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                Active Projects
-              </h2>
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Recent Projects
+              </h3>
               <Link
                 to="/jobs"
                 className={`flex items-center gap-2 text-sm font-medium transition-colors ${isDarkMode ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-700'
@@ -372,22 +351,19 @@ export default function Home() {
               </Link>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <ConstructionGrid cols={3}>
               {recentJobs.map((job) => (
-                <div
+                <ConstructionCard
                   key={job.id}
-                  className={`p-4 rounded-lg border transition-all duration-200 hover:shadow-md cursor-pointer ${isDarkMode
-                      ? 'bg-gray-800/80 border-gray-700 hover:bg-gray-800'
-                      : 'bg-white border-gray-200 hover:bg-gray-50'
-                    }`}
+                  className="p-4 cursor-pointer"
                   onClick={() => navigate(`/job/${job.id}`)}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className={`font-medium line-clamp-1 ${isDarkMode ? 'text-white' : 'text-gray-900'
+                      <h4 className={`font-medium line-clamp-1 ${isDarkMode ? 'text-white' : 'text-gray-900'
                         }`}>
                         {job.name}
-                      </h3>
+                      </h4>
                       <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                         }`}>
                         {job.client}
@@ -421,66 +397,59 @@ export default function Home() {
                       </div>
                     )}
                   </div>
-                </div>
+                </ConstructionCard>
               ))}
-            </div>
-          </div>
-        )}
+            </ConstructionGrid>
+          </ConstructionCard>
+        </ConstructionSection>
+      )}
 
-        {/* Quick Actions */}
-        <div className={`rounded-2xl p-6 backdrop-blur-sm border ${isDarkMode
-            ? 'bg-gray-800/50 border-gray-700'
-            : 'bg-white/80 border-gray-200 shadow-sm'
-          }`}>
-          <h2 className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'
-            }`}>
-            Quick Actions
-          </h2>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Link
-              to="/create"
-              className="flex items-center gap-3 p-4 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+      {/* Quick Actions */}
+      <ConstructionSection title="Quick Actions">
+        <ConstructionCard className="p-6">
+          <ConstructionGrid cols={4}>
+            <ConstructionButton
+              variant="orange"
+              size="lg"
+              onClick={() => navigate('/create')}
+              className="flex items-center gap-3 justify-center"
             >
               <Plus className="w-5 h-5" />
-              <span className="font-medium">New Project</span>
-            </Link>
+              New Project
+            </ConstructionButton>
 
-            <Link
-              to="/jobs"
-              className={`flex items-center gap-3 p-4 rounded-xl transition-colors ${isDarkMode
-                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+            <ConstructionButton
+              variant="secondary"
+              size="lg"
+              onClick={() => navigate('/jobs')}
+              className="flex items-center gap-3 justify-center"
             >
               <HomeIcon className="w-5 h-5" />
-              <span className="font-medium">Manage Jobs</span>
-            </Link>
+              Manage Jobs
+            </ConstructionButton>
 
-            <Link
-              to="/dashboard"
-              className={`flex items-center gap-3 p-4 rounded-xl transition-colors ${isDarkMode
-                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+            <ConstructionButton
+              variant="secondary"
+              size="lg"
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-3 justify-center"
             >
               <Calendar className="w-5 h-5" />
-              <span className="font-medium">Schedule Team</span>
-            </Link>
+              Schedule Team
+            </ConstructionButton>
 
-            <Link
-              to="/inventory"
-              className={`flex items-center gap-3 p-4 rounded-xl transition-colors ${isDarkMode
-                  ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
+            <ConstructionButton
+              variant="secondary"
+              size="lg"
+              onClick={() => navigate('/inventory')}
+              className="flex items-center gap-3 justify-center"
             >
               <Package className="w-5 h-5" />
-              <span className="font-medium">Check Inventory</span>
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
+              Check Inventory
+            </ConstructionButton>
+          </ConstructionGrid>
+        </ConstructionCard>
+      </ConstructionSection>
+    </ConstructionPage>
   );
 }
